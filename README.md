@@ -16,6 +16,10 @@ hunting for which folder a conversation lived in.
 It can also resume a session with **mobile Remote Control** enabled, so you can
 pick the conversation back up from your phone or the web.
 
+<p align="center">
+  <img src="assets/demo.gif" width="820" alt="ccr in action — fuzzy-search, preview, and resume">
+</p>
+
 ```
  just now │ Add JWT auth to the API gateway      │ ~/code/acme-api
    2m ago │ Fix flaky checkout integration test  │ ~/code/storefront
