@@ -1,0 +1,496 @@
+#!/usr/bin/env bash
+#
+# ccr — Claude Code Resume
+# Browse all Claude Code sessions across every project, pick one in an fzf
+# menu (with preview), then auto-cd into its working directory and resume.
+# Optionally enable mobile Remote Control on resume.
+#
+# Requirements: bash, fzf, python3, and the `claude` CLI.
+# Language: auto-detected from $LANG; override with --lang zh|en or $CCR_LANG.
+#
+# Usage:
+#   ccr                      List sessions from every project (sorted by time)
+#   ccr .                    Only sessions whose cwd is under the current dir
+#   ccr <path>               Only sessions whose cwd is under <path>
+#   ccr --last               Resume the most recent session (no menu)
+#   ccr -n|--nth <N>         Resume the Nth most recent session (no menu)
+#   ccr -s|--sort <key>      Sort by: time (default) | title | dir
+#   ccr -l|--lang <zh|en>    UI language (default: auto-detect)
+#   ccr -h|--help            Show help
+#
+# In-menu keys:
+#   Enter   resume
+#   Ctrl-R  resume + mobile Remote Control (--remote-control)
+#   Ctrl-Y  print the command only (don't run)
+#   Ctrl-T  sort by time     Ctrl-O sort by title     Ctrl-G sort by dir
+#   Esc     quit
+#
+# MIT License — see the LICENSE file. https://github.com/kylinfish/claude-code-resume
+#
+set -euo pipefail
+
+PROJECTS_DIR="${CCR_PROJECTS_DIR:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects}"
+TAB=$'\t'
+
+# ---------------------------------------------------------------------------
+# i18n
+# ---------------------------------------------------------------------------
+# Resolve language: explicit arg > $CCR_LANG > $LANG/$LC_ALL autodetect.
+resolve_lang() {
+  local v="${1:-${CCR_LANG:-}}"
+  if [ -z "$v" ]; then
+    case "${LC_ALL:-}${LANG:-}" in
+      zh*|*_zh*|*zh_*) v=zh ;;
+      *)               v=en ;;
+    esac
+  fi
+  case "$v" in
+    zh*|cn|tw|CN|TW|ZH*) printf 'zh' ;;
+    *)                   printf 'en' ;;
+  esac
+}
+LANG_MODE="$(resolve_lang)"
+
+# t <key> [printf-args...] -> localized string (no trailing newline).
+t() {
+  local k="$1"; shift
+  local fmt=''
+  case "$LANG_MODE:$k" in
+    zh:need_fzf)     fmt='ccr：需要 fzf，請先安裝（brew install fzf）' ;;
+    en:need_fzf)     fmt='ccr: fzf is required (install: brew install fzf)' ;;
+    zh:need_python)  fmt='ccr：需要 python3' ;;
+    en:need_python)  fmt='ccr: python3 is required' ;;
+    zh:no_projects)  fmt='ccr：找不到 %s' ;;
+    en:no_projects)  fmt='ccr: %s not found' ;;
+    zh:unknown_opt)  fmt='ccr：未知選項 %s' ;;
+    en:unknown_opt)  fmt='ccr: unknown option %s' ;;
+    zh:sort_invalid) fmt='ccr：--sort 只接受 time|title|dir（預設 time）' ;;
+    en:sort_invalid) fmt='ccr: --sort accepts time|title|dir (default: time)' ;;
+    zh:lang_invalid) fmt='ccr：--lang 只接受 zh|en' ;;
+    en:lang_invalid) fmt='ccr: --lang accepts zh|en' ;;
+    zh:no_session)   fmt='ccr：%s 底下沒有找到 session' ;;
+    en:no_session)   fmt='ccr: no sessions found under %s' ;;
+    zh:no_session_all) fmt='ccr：沒有找到任何 session' ;;
+    en:no_session_all) fmt='ccr: no sessions found' ;;
+    zh:cancelled)    fmt='已取消' ;;
+    en:cancelled)    fmt='Cancelled' ;;
+    zh:parse_sid)    fmt='ccr：無法解析 session id' ;;
+    en:parse_sid)    fmt='ccr: failed to parse session id' ;;
+    zh:dir_missing)  fmt='ccr：目錄不存在：%s' ;;
+    en:dir_missing)  fmt='ccr: directory does not exist: %s' ;;
+    zh:nth_invalid)  fmt='ccr：-n/--nth 需要正整數' ;;
+    en:nth_invalid)  fmt='ccr: -n/--nth requires a positive integer' ;;
+    zh:nth_oob)      fmt='ccr：沒有第 %s 個 session' ;;
+    en:nth_oob)      fmt='ccr: no session at position %s' ;;
+    zh:pv_missing)   fmt='⚠ 目錄已不存在' ;;
+    en:pv_missing)   fmt='⚠ directory no longer exists' ;;
+    zh:pv_last)      fmt='💬 最後的 prompt' ;;
+    en:pv_last)      fmt='💬 last prompt' ;;
+    zh:header)       fmt=$'Enter 開啟  ^R +手機遠端  ^Y 只印指令  │  排序 ^T 時間 ^O 標題 ^G 目錄  │  Esc 取消' ;;
+    en:header)       fmt=$'Enter resume  ^R +remote  ^Y print cmd  │  sort ^T time ^O title ^G dir  │  Esc quit' ;;
+    *)               fmt="$k" ;;
+  esac
+  # shellcheck disable=SC2059
+  printf "$fmt" "$@"
+}
+
+print_help() {
+  if [ "$LANG_MODE" = zh ]; then
+    cat <<'EOF'
+ccr — Claude Code Resume
+
+掃描所有 Claude Code 歷史 session，用 fzf 選單 + preview 呈現，
+選定後自動 cd 到該專案目錄並 resume（可選擇開啟手機遠端控制）。
+
+用法：
+  ccr                      列出所有專案的 session（預設依時間排序）
+  ccr .                    只列出當前目錄(含子目錄)的 session
+  ccr <path>               只列出指定目錄(含子目錄)的 session
+  ccr --last               不開選單，直接續最近一個 session
+  ccr -n|--nth <N>         不開選單，直接續第 N 新的 session
+  ccr -s|--sort <key>      排序：time(預設) | title | dir
+  ccr -l|--lang <zh|en>    介面語言（預設：自動偵測 $LANG）
+  ccr -h|--help            顯示說明
+
+選單內快捷鍵：
+  Enter   開啟（resume）
+  Ctrl-R  resume + 手機遠端控制 (--remote-control)
+  Ctrl-Y  只印出指令，不執行
+  Ctrl-T  依時間排序   Ctrl-O 依標題   Ctrl-G 依目錄
+  Esc     取消
+
+環境變數：
+  CCR_LANG=zh|en          覆寫語言
+  CCR_PROJECTS_DIR=<dir>  覆寫掃描路徑（預設 ~/.claude/projects）
+EOF
+  else
+    cat <<'EOF'
+ccr — Claude Code Resume
+
+Browse all Claude Code sessions across every project in an fzf menu
+(with preview), then auto-cd into the session's working directory and
+resume it. Optionally enable mobile Remote Control on resume.
+
+Usage:
+  ccr                      List sessions from every project (sorted by time)
+  ccr .                    Only sessions whose cwd is under the current dir
+  ccr <path>               Only sessions whose cwd is under <path>
+  ccr --last               Resume the most recent session (no menu)
+  ccr -n|--nth <N>         Resume the Nth most recent session (no menu)
+  ccr -s|--sort <key>      Sort by: time (default) | title | dir
+  ccr -l|--lang <zh|en>    UI language (default: auto-detect from $LANG)
+  ccr -h|--help            Show this help
+
+In-menu keys:
+  Enter   resume
+  Ctrl-R  resume + mobile Remote Control (--remote-control)
+  Ctrl-Y  print the command only (don't run)
+  Ctrl-T  sort by time   Ctrl-O sort by title   Ctrl-G sort by dir
+  Esc     quit
+
+Environment:
+  CCR_LANG=zh|en          override language
+  CCR_PROJECTS_DIR=<dir>  override scan path (default: ~/.claude/projects)
+EOF
+  fi
+}
+
+# resume_session <sid> <cwd> [remote:0|1] — cd into the project and resume.
+resume_session() {
+  local sid="$1" cwd="$2" remote="${3:-0}"
+  [ -n "$sid" ] || { echo "$(t parse_sid)" >&2; exit 1; }
+  if [ -n "$cwd" ] && [ ! -d "$cwd" ]; then
+    echo "$(t dir_missing "$cwd")" >&2; exit 1
+  fi
+  local cmd=(claude --resume "$sid")
+  [ "$remote" = 1 ] && cmd+=(--remote-control)
+  echo "→ cd $cwd"
+  echo "→ ${cmd[*]}"
+  cd "$cwd"
+  exec "${cmd[@]}"
+}
+
+# ---------------------------------------------------------------------------
+# preview subcommand: invoked by fzf with the highlighted row's fields
+#   $1 title  $2 when(human)  $3 rel  $4 cwd  $5 last_prompt  $6 sessionId
+# ---------------------------------------------------------------------------
+do_preview() {
+  local title="${1:-}" when="${2:-}" rel="${3:-}" cwd="${4:-}" last="${5:-}" sid="${6:-}"
+  local C_RESET=$'\033[0m' C_TITLE=$'\033[1;36m' C_DIM=$'\033[2m' C_WARN=$'\033[1;31m' C_KEY=$'\033[33m'
+  printf '%s📌 %s%s\n\n' "$C_TITLE" "$title" "$C_RESET"
+  printf '%s🕒%s %s  %s(%s)%s\n' "$C_KEY" "$C_RESET" "$when" "$C_DIM" "$rel" "$C_RESET"
+  if [ -n "$cwd" ] && [ ! -d "$cwd" ]; then
+    printf '%s📁 %s  %s%s\n' "$C_WARN" "$cwd" "$(t pv_missing)" "$C_RESET"
+  else
+    printf '%s📁%s %s\n' "$C_KEY" "$C_RESET" "$cwd"
+  fi
+  printf '%s🔑%s %s\n' "$C_KEY" "$C_RESET" "$sid"
+  if [ -n "$last" ]; then
+    printf '\n%s%s%s\n%s\n' "$C_KEY" "$(t pv_last)" "$C_RESET" "$last"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# scan: parse every jsonl, emit one TSV row per session, sorted.
+#   args: <filter_dir> <sort_key> ; language taken from $LANG_MODE
+#   columns: DISPLAY \t sessionId \t cwd \t when \t rel \t title \t last_prompt
+# ---------------------------------------------------------------------------
+scan() {
+  python3 - "$PROJECTS_DIR" "${1:-}" "${2:-time}" "$LANG_MODE" <<'PY'
+import sys, os, json, glob, time, unicodedata, hashlib
+
+projects_dir = sys.argv[1]
+filter_dir   = sys.argv[2] if len(sys.argv) > 2 else ""
+sort_key     = sys.argv[3] if len(sys.argv) > 3 else "time"
+lang         = sys.argv[4] if len(sys.argv) > 4 else "en"
+now = time.time()
+
+# --- index cache: avoid re-parsing jsonl files whose mtime is unchanged ---
+cache_home = os.environ.get("CCR_CACHE") or os.path.join(
+    os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "ccr")
+cache_file = os.path.join(
+    cache_home, "index-" + hashlib.md5(projects_dir.encode("utf-8")).hexdigest()[:8] + ".json")
+try:
+    with open(cache_file, encoding="utf-8") as _cf:
+        _cache = json.load(_cf)
+    if not isinstance(_cache, dict):
+        _cache = {}
+except Exception:
+    _cache = {}
+new_cache = {}
+cache_dirty = False
+
+# --- ANSI palette (256-color) ---
+ESC = "\x1b"
+R   = ESC + "[0m"
+def col(n): return ESC + "[38;5;" + str(n) + "m"
+SEP        = col(240) + "│" + R    # dim grey separator
+C_RECENT   = col(78)               # green   (< 1 day)
+C_MID      = col(180)              # warm    (< 7 days)
+C_OLD      = col(244)              # dim     (older)
+C_TITLE    = col(253)             # near-white
+C_TITLE_LO = col(244)             # dim (untitled / system)
+C_PATH     = col(110)             # soft blue
+
+def dwidth(s):
+    return sum(2 if unicodedata.east_asian_width(c) in ("W", "F") else 1 for c in s)
+
+def fit(s, width, align="left"):
+    total = dwidth(s)
+    if total <= width:
+        pad = " " * (width - total)
+        return pad + s if align == "right" else s + pad
+    out, w = "", 0
+    for c in s:
+        cw = 2 if unicodedata.east_asian_width(c) in ("W", "F") else 1
+        if w + cw > width - 1:
+            break
+        out += c
+        w += cw
+    out += "…"
+    w += 1
+    return out + " " * (width - w)
+
+def rel_time(epoch):
+    d = now - epoch
+    if lang == "zh":
+        if d < 60:        return "剛剛"
+        if d < 3600:      return f"{int(d//60)} 分鐘前"
+        if d < 86400:     return f"{int(d//3600)} 小時前"
+        if d < 86400*30:  return f"{int(d//86400)} 天前"
+        if d < 86400*365: return f"{int(d//(86400*30))} 個月前"
+        return f"{int(d//(86400*365))} 年前"
+    else:
+        if d < 60:        return "just now"
+        if d < 3600:      return f"{int(d//60)}m ago"
+        if d < 86400:     return f"{int(d//3600)}h ago"
+        if d < 86400*30:  return f"{int(d//86400)}d ago"
+        if d < 86400*365: return f"{int(d//(86400*30))}mo ago"
+        return f"{int(d//(86400*365))}y ago"
+
+def clean(s):
+    if not s: return ""
+    return " ".join(str(s).split())
+
+def shorten_path(p):
+    home = os.path.expanduser("~")
+    if p and p.startswith(home):
+        return "~" + p[len(home):]
+    return p
+
+def first_text(content):
+    if isinstance(content, str): return content
+    if isinstance(content, list):
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "text":
+                return part.get("text", "")
+    return ""
+
+def in_filter(cwd):
+    if not filter_dir:
+        return True
+    return cwd == filter_dir or cwd.startswith(filter_dir.rstrip("/") + "/")
+
+rows = []
+for path in glob.glob(os.path.join(projects_dir, "*", "*.jsonl")):
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        continue
+    sid = os.path.splitext(os.path.basename(path))[0]
+
+    ent = _cache.get(path)
+    if ent and ent.get("mtime") == mtime:
+        # unchanged file -> reuse cached extraction (already cleaned)
+        cwd   = ent.get("cwd", "")
+        title = ent.get("title", "")
+        last  = ent.get("last", "")
+    else:
+        cache_dirty = True
+        cwd = ""
+        ai_title = summary = first_user = last_prompt = last_user = None
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        d = json.loads(line)
+                    except Exception:
+                        continue
+                    ty = d.get("type")
+                    if not cwd and d.get("cwd"):
+                        cwd = d["cwd"]
+                    if ty == "ai-title" and d.get("aiTitle"):
+                        ai_title = d["aiTitle"]
+                    elif ty == "summary" and d.get("summary"):
+                        summary = d["summary"]
+                    elif ty == "last-prompt" and d.get("lastPrompt"):
+                        last_prompt = d["lastPrompt"]
+                    elif ty == "user":
+                        txt = first_text(d.get("message", {}).get("content"))
+                        if txt:
+                            if first_user is None:
+                                first_user = txt
+                            last_user = txt
+        except OSError:
+            continue
+        title = ai_title or summary or (first_user[:60] if first_user else "") or "(untitled)"
+        last  = last_prompt or last_user or ""
+        if not cwd:
+            cwd = os.path.dirname(path)
+        title = clean(title)
+        last  = clean(last)
+
+    new_cache[path] = {"mtime": mtime, "cwd": cwd, "title": title, "last": last}
+
+    if not in_filter(cwd):
+        continue
+
+    when  = time.strftime("%Y-%m-%d %H:%M", time.localtime(mtime))
+    rel   = rel_time(mtime)
+
+    # recency color for the relative-time column
+    d = now - mtime
+    relc = C_RECENT if d < 86400 else (C_MID if d < 7*86400 else C_OLD)
+    titlec = C_TITLE_LO if (title == "(untitled)" or title.startswith("<")) else C_TITLE
+
+    relf   = fit(rel, 9, "right")
+    titlef = fit(title, 44)
+    paths  = shorten_path(cwd)
+    display = f"{relc}{relf}{R} {SEP} {titlec}{titlef}{R} {SEP} {C_PATH}{paths}{R}"
+
+    rows.append((mtime, title, cwd, "\t".join([display, sid, cwd, when, rel, title, last])))
+
+if sort_key == "title":
+    rows.sort(key=lambda r: r[1].casefold())
+elif sort_key in ("dir", "workdir"):
+    rows.sort(key=lambda r: (r[2].casefold(), -r[0]))
+else:
+    rows.sort(key=lambda r: r[0], reverse=True)
+
+for r in rows:
+    print(r[-1])
+
+# Persist the cache if anything was parsed or files disappeared.
+if cache_dirty or set(new_cache) != set(_cache):
+    try:
+        os.makedirs(cache_home, exist_ok=True)
+        tmp = cache_file + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as _cf:
+            json.dump(new_cache, _cf)
+        os.replace(tmp, cache_file)
+    except Exception:
+        pass
+PY
+}
+
+# ---------------------------------------------------------------------------
+# dispatch (internal subcommands invoked by fzf run in fresh processes;
+# they read language/filter from the exported env)
+# ---------------------------------------------------------------------------
+case "${1:-}" in
+  __preview) shift; do_preview "$@"; exit 0 ;;
+  __list)    shift; scan "${CCR_FILTER:-}" "${1:-time}"; exit 0 ;;
+  -h|--help) print_help; exit 0 ;;
+esac
+
+command -v fzf     >/dev/null 2>&1 || { echo "$(t need_fzf)"    >&2; exit 1; }
+command -v python3 >/dev/null 2>&1 || { echo "$(t need_python)" >&2; exit 1; }
+[ -d "$PROJECTS_DIR" ] || { echo "$(t no_projects "$PROJECTS_DIR")" >&2; exit 1; }
+
+# --- argument parsing ---
+SORT="time"
+FILTER=""
+LANG_OVERRIDE=""
+NTH=""   # set => resume directly without the menu (Nth in sorted order)
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -s|--sort) SORT="${2:-time}"; shift 2 ;;
+    --sort=*)  SORT="${1#*=}"; shift ;;
+    -l|--lang) LANG_OVERRIDE="${2:-}"; shift 2 ;;
+    --lang=*)  LANG_OVERRIDE="${1#*=}"; shift ;;
+    -n|--nth)  NTH="${2:-}"; shift 2 ;;
+    --nth=*)   NTH="${1#*=}"; shift ;;
+    --last)    NTH=1; shift ;;
+    -h|--help) print_help; exit 0 ;;
+    .)         FILTER="$PWD"; shift ;;
+    -*)        echo "$(t unknown_opt "$1")" >&2; exit 1 ;;
+    *)         FILTER="$(cd "$1" 2>/dev/null && pwd || printf '%s' "$1")"; shift ;;
+  esac
+done
+
+if [ -n "$NTH" ]; then
+  case "$NTH" in
+    ''|*[!0-9]*) echo "$(t nth_invalid)" >&2; exit 1 ;;
+  esac
+  [ "$NTH" -ge 1 ] || { echo "$(t nth_invalid)" >&2; exit 1; }
+fi
+
+if [ -n "$LANG_OVERRIDE" ]; then
+  case "$LANG_OVERRIDE" in
+    zh*|en*|cn|tw|CN|TW|ZH*|EN*) LANG_MODE="$(resolve_lang "$LANG_OVERRIDE")" ;;
+    *) echo "$(t lang_invalid)" >&2; exit 1 ;;
+  esac
+fi
+case "$SORT" in
+  time|title|dir|workdir) ;;
+  *) echo "$(t sort_invalid)" >&2; exit 1 ;;
+esac
+
+# Export so fzf-spawned subcommands (__preview/__list) inherit them
+export CCR_LANG="$LANG_MODE"
+export CCR_FILTER="$FILTER"
+export CCR_SELF="$0"
+
+DATA="$(scan "$FILTER" "$SORT")"
+if [ -z "$DATA" ]; then
+  if [ -n "$FILTER" ]; then echo "$(t no_session "$FILTER")" >&2
+  else echo "$(t no_session_all)" >&2; fi
+  exit 0
+fi
+
+# Quick resume: skip the menu and resume the Nth session in sorted order.
+if [ -n "$NTH" ]; then
+  LINE="$(printf '%s\n' "$DATA" | sed -n "${NTH}p")"
+  [ -n "$LINE" ] || { echo "$(t nth_oob "$NTH")" >&2; exit 1; }
+  SID="$(printf '%s' "$LINE" | cut -d"$TAB" -f2)"
+  CWD="$(printf '%s' "$LINE" | cut -d"$TAB" -f3)"
+  resume_session "$SID" "$CWD" 0
+fi
+
+# Show only column 1 (DISPLAY); preview/sort use the hidden columns.
+RESULT="$(
+  printf '%s\n' "$DATA" | fzf \
+    --ansi \
+    --delimiter="$TAB" \
+    --with-nth=1 \
+    --no-hscroll \
+    --reverse \
+    --border \
+    --prompt="[$SORT] ❯ " \
+    --header="$(t header)" \
+    --expect=ctrl-r,ctrl-y \
+    --bind 'ctrl-t:reload("$CCR_SELF" __list time)+change-prompt([time] ❯ )' \
+    --bind 'ctrl-o:reload("$CCR_SELF" __list title)+change-prompt([title] ❯ )' \
+    --bind 'ctrl-g:reload("$CCR_SELF" __list dir)+change-prompt([dir] ❯ )' \
+    --preview="\"\$CCR_SELF\" __preview {6} {4} {5} {3} {7} {2}" \
+    --preview-window='down,45%,wrap,border-top'
+)" || { echo "$(t cancelled)"; exit 0; }
+
+# --expect output: line 1 = key (empty for Enter), line 2 = selected row
+KEY="$(printf '%s\n' "$RESULT" | sed -n '1p')"
+LINE="$(printf '%s\n' "$RESULT" | sed -n '2p')"
+[ -n "$LINE" ] || { echo "$(t cancelled)"; exit 0; }
+
+SID="$(printf '%s' "$LINE" | cut -d"$TAB" -f2)"
+CWD="$(printf '%s' "$LINE" | cut -d"$TAB" -f3)"
+
+case "$KEY" in
+  ctrl-y)  # print the command only, don't run
+    printf 'cd %q && %s\n' "$CWD" "claude --resume $SID"
+    exit 0 ;;
+  ctrl-r)  resume_session "$SID" "$CWD" 1 ;;
+  *)       resume_session "$SID" "$CWD" 0 ;;
+esac
