@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- README split into `README.md` (English) and `README.zh-TW.md` (繁體中文) with a language switch; features grouped into sections.
+- The banner shows both `ccr` and `ccc` (+ Codex) and the current UI.
+
 ## [0.4.0] - 2026-10-01
 
 ### Added
