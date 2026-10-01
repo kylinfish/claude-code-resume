@@ -32,7 +32,7 @@ pick the conversation back up from your phone or the web.
 │ 🔑 0a1b2c3d-4e5f-6789-abcd-ef0123456789                  │
 │ 💬 last prompt: extract the token check into middleware  │
 └──────────────────────────────────────────────────────────┘
-Enter resume  ^R +remote  ^Y print cmd  │  sort ^T time ^O title ^G dir  │  Esc quit
+Enter resume  ^R +remote  ^F fork  ^Y print cmd  │  sort ^T time ^O title ^G dir  │  Esc quit
 ```
 
 (中文說明請見 [下方](#中文說明)。)
@@ -43,6 +43,7 @@ Enter resume  ^R +remote  ^Y print cmd  │  sort ^T time ^O title ^G dir  │  
 - **Rich preview** — AI-generated title, timestamp, working directory, session id, and the last prompt.
 - **One-key resume** — `Enter` cd's into the project and runs `claude --resume`.
 - **Quick resume** — `ccr --last` / `ccr -n N` resume straight away without opening the menu.
+- **Fork** — `Ctrl-F` (or `ccr --fork`) resumes into a new session id with `--fork-session`, leaving the original untouched.
 - **Mobile handoff** — `Ctrl-R` resumes with `--remote-control` so you can continue on the Claude mobile app / web.
 - **Live sorting** — by time, title, or working directory; switch inside the menu without restarting.
 - **Color & alignment** — recency-colored timestamps, CJK-width-aware columns that line up even with mixed Chinese/English titles.
@@ -76,6 +77,7 @@ ccr .                    # only sessions whose cwd is under the current director
 ccr ~/code/myproject     # only sessions under a given directory
 ccr --last               # resume the most recent session, no menu
 ccr -n 2                 # resume the 2nd most recent session, no menu
+ccr --last --fork        # fork the most recent session into a new session id
 ccr -s title             # sort by title  (time | title | dir)
 ccr --lang zh            # force Chinese UI (default: auto-detect from $LANG)
 ccr --help
@@ -87,6 +89,7 @@ ccr --help
 | -------- | ------------------------------------------------------------- |
 | `Enter`  | resume the selected session                                   |
 | `Ctrl-R` | resume **+ mobile Remote Control** (`--remote-control`)       |
+| `Ctrl-F` | fork: resume into a new session id (`--fork-session`)         |
 | `Ctrl-Y` | print the `cd … && claude --resume …` command without running |
 | `Ctrl-T` | sort by time                                                  |
 | `Ctrl-O` | sort by title                                                 |
@@ -142,6 +145,7 @@ hundreds of sessions.
 | 預覽 | AI 標題、時間、工作目錄、session id、最後一次 prompt |
 | 一鍵 resume | `Enter` 直接切目錄並 `claude --resume` |
 | 快速 resume | `ccr --last` / `ccr -n N` 不開選單直接續 |
+| 分支續接 | `Ctrl-F`（或 `ccr --fork`）以 `--fork-session` 開新 session id，原對話不受影響 |
 | 手機接手 | `Ctrl-R` 加 `--remote-control`，用 Claude 手機 app／網頁繼續 |
 | 即時排序 | 時間／標題／目錄，選單內直接切換 |
 | 彩色 + 對齊 | 時間依新舊上色，正確計算全形字寬度，中英混排也對齊 |
@@ -173,6 +177,7 @@ cd claude-code-resume
 | `ccr <path>` | 只看指定目錄(含子目錄)的 session |
 | `ccr --last` | 不開選單，直接續最近一個 session |
 | `ccr -n N` | 不開選單，直接續第 N 新的 session |
+| `ccr --last --fork` | 把最近一個 session 分支成新的 session id |
 | `ccr -s title` | 依標題排序（`time`｜`title`｜`dir`） |
 | `ccr --lang zh` | 強制中文介面（預設依 `$LANG` 自動偵測） |
 | `ccr --help` | 顯示說明 |
@@ -183,6 +188,7 @@ cd claude-code-resume
 | ---- | ---- |
 | `Enter` | 開啟選定的 session |
 | `Ctrl-R` | 開啟 **+ 手機遠端控制**（`--remote-control`） |
+| `Ctrl-F` | 分支：以新的 session id 續接（`--fork-session`） |
 | `Ctrl-Y` | 只印出 `cd … && claude --resume …` 指令，不執行 |
 | `Ctrl-T` | 依時間排序 |
 | `Ctrl-O` | 依標題排序 |

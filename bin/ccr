@@ -14,6 +14,7 @@
 #   ccr <path>               Only sessions whose cwd is under <path>
 #   ccr --last               Resume the most recent session (no menu)
 #   ccr -n|--nth <N>         Resume the Nth most recent session (no menu)
+#   ccr -f|--fork            Resume into a new session id (--fork-session)
 #   ccr -s|--sort <key>      Sort by: time (default) | title | dir
 #   ccr -l|--lang <zh|en>    UI language (default: auto-detect)
 #   ccr -h|--help            Show help
@@ -21,6 +22,7 @@
 # In-menu keys:
 #   Enter   resume
 #   Ctrl-R  resume + mobile Remote Control (--remote-control)
+#   Ctrl-F  fork: resume into a new session id (--fork-session)
 #   Ctrl-Y  print the command only (don't run)
 #   Ctrl-T  sort by time     Ctrl-O sort by title     Ctrl-G sort by dir
 #   Esc     quit
@@ -86,8 +88,8 @@ t() {
     en:pv_missing)   fmt='⚠ directory no longer exists' ;;
     zh:pv_last)      fmt='💬 最後的 prompt' ;;
     en:pv_last)      fmt='💬 last prompt' ;;
-    zh:header)       fmt=$'Enter 開啟  ^R +手機遠端  ^Y 只印指令  │  排序 ^T 時間 ^O 標題 ^G 目錄  │  Esc 取消' ;;
-    en:header)       fmt=$'Enter resume  ^R +remote  ^Y print cmd  │  sort ^T time ^O title ^G dir  │  Esc quit' ;;
+    zh:header)       fmt=$'Enter 開啟  ^R +手機遠端  ^F 分支  ^Y 只印指令  │  排序 ^T 時間 ^O 標題 ^G 目錄  │  Esc 取消' ;;
+    en:header)       fmt=$'Enter resume  ^R +remote  ^F fork  ^Y print cmd  │  sort ^T time ^O title ^G dir  │  Esc quit' ;;
     *)               fmt="$k" ;;
   esac
   # shellcheck disable=SC2059
@@ -108,6 +110,7 @@ ccr — Claude Code Resume
   ccr <path>               只列出指定目錄(含子目錄)的 session
   ccr --last               不開選單，直接續最近一個 session
   ccr -n|--nth <N>         不開選單，直接續第 N 新的 session
+  ccr -f|--fork            以新的 session id 分支續接（--fork-session）
   ccr -s|--sort <key>      排序：time(預設) | title | dir
   ccr -l|--lang <zh|en>    介面語言（預設：自動偵測 $LANG）
   ccr -h|--help            顯示說明
@@ -115,6 +118,7 @@ ccr — Claude Code Resume
 選單內快捷鍵：
   Enter   開啟（resume）
   Ctrl-R  resume + 手機遠端控制 (--remote-control)
+  Ctrl-F  分支：以新的 session id 續接 (--fork-session)
   Ctrl-Y  只印出指令，不執行
   Ctrl-T  依時間排序   Ctrl-O 依標題   Ctrl-G 依目錄
   Esc     取消
@@ -137,6 +141,7 @@ Usage:
   ccr <path>               Only sessions whose cwd is under <path>
   ccr --last               Resume the most recent session (no menu)
   ccr -n|--nth <N>         Resume the Nth most recent session (no menu)
+  ccr -f|--fork            Resume into a new session id (--fork-session)
   ccr -s|--sort <key>      Sort by: time (default) | title | dir
   ccr -l|--lang <zh|en>    UI language (default: auto-detect from $LANG)
   ccr -h|--help            Show this help
@@ -144,6 +149,7 @@ Usage:
 In-menu keys:
   Enter   resume
   Ctrl-R  resume + mobile Remote Control (--remote-control)
+  Ctrl-F  fork: resume into a new session id (--fork-session)
   Ctrl-Y  print the command only (don't run)
   Ctrl-T  sort by time   Ctrl-O sort by title   Ctrl-G sort by dir
   Esc     quit
@@ -155,15 +161,16 @@ EOF
   fi
 }
 
-# resume_session <sid> <cwd> [remote:0|1] — cd into the project and resume.
+# resume_session <sid> <cwd> [remote:0|1] [fork:0|1] — cd into the project and resume.
 resume_session() {
-  local sid="$1" cwd="$2" remote="${3:-0}"
+  local sid="$1" cwd="$2" remote="${3:-0}" fork="${4:-0}"
   [ -n "$sid" ] || { echo "$(t parse_sid)" >&2; exit 1; }
   if [ -n "$cwd" ] && [ ! -d "$cwd" ]; then
     echo "$(t dir_missing "$cwd")" >&2; exit 1
   fi
   local cmd=(claude --resume "$sid")
   [ "$remote" = 1 ] && cmd+=(--remote-control)
+  [ "$fork" = 1 ] && cmd+=(--fork-session)
   echo "→ cd $cwd"
   echo "→ ${cmd[*]}"
   cd "$cwd"
@@ -409,6 +416,7 @@ command -v python3 >/dev/null 2>&1 || { echo "$(t need_python)" >&2; exit 1; }
 SORT="time"
 FILTER=""
 LANG_OVERRIDE=""
+FORK=0  # 1 => resume with --fork-session
 NTH=""   # set => resume directly without the menu (Nth in sorted order)
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -419,6 +427,7 @@ while [ $# -gt 0 ]; do
     -n|--nth)  NTH="${2:-}"; shift 2 ;;
     --nth=*)   NTH="${1#*=}"; shift ;;
     --last)    NTH=1; shift ;;
+    -f|--fork) FORK=1; shift ;;
     -h|--help) print_help; exit 0 ;;
     .)         FILTER="$PWD"; shift ;;
     -*)        echo "$(t unknown_opt "$1")" >&2; exit 1 ;;
@@ -462,7 +471,7 @@ if [ -n "$NTH" ]; then
   [ -n "$LINE" ] || { echo "$(t nth_oob "$NTH")" >&2; exit 1; }
   SID="$(printf '%s' "$LINE" | cut -d"$TAB" -f2)"
   CWD="$(printf '%s' "$LINE" | cut -d"$TAB" -f3)"
-  resume_session "$SID" "$CWD" 0
+  resume_session "$SID" "$CWD" 0 "$FORK"
 fi
 
 # Show only column 1 (DISPLAY); preview/sort use the hidden columns.
@@ -476,7 +485,7 @@ RESULT="$(
     --border \
     --prompt="[$SORT] ❯ " \
     --header="$(t header)" \
-    --expect=ctrl-r,ctrl-y \
+    --expect=ctrl-r,ctrl-f,ctrl-y \
     --bind 'ctrl-t:reload("$CCR_SELF" __list time)+change-prompt([time] ❯ )' \
     --bind 'ctrl-o:reload("$CCR_SELF" __list title)+change-prompt([title] ❯ )' \
     --bind 'ctrl-g:reload("$CCR_SELF" __list dir)+change-prompt([dir] ❯ )' \
@@ -494,8 +503,9 @@ CWD="$(printf '%s' "$LINE" | cut -d"$TAB" -f3)"
 
 case "$KEY" in
   ctrl-y)  # print the command only, don't run
-    printf 'cd %q && %s\n' "$CWD" "claude --resume $SID"
+    printf 'cd %q && %s%s\n' "$CWD" "claude --resume $SID" "$([ "$FORK" = 1 ] && printf ' --fork-session')"
     exit 0 ;;
-  ctrl-r)  resume_session "$SID" "$CWD" 1 ;;
-  *)       resume_session "$SID" "$CWD" 0 ;;
+  ctrl-r)  resume_session "$SID" "$CWD" 1 "$FORK" ;;
+  ctrl-f)  resume_session "$SID" "$CWD" 0 1 ;;
+  *)       resume_session "$SID" "$CWD" 0 "$FORK" ;;
 esac

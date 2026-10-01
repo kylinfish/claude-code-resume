@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `Ctrl-F` in the menu and `-f`/`--fork` on the command line resume into a new session id via `claude --fork-session`, leaving the original session untouched.
+
 ### Changed
 - Session titles now prefer the name set with `/rename` or `claude -n` (`custom-title`, then `agent-name`) over the AI-generated title.
 - Index cache file renamed to `index-v2-*` so existing caches are rebuilt with the new titles.
