@@ -726,21 +726,30 @@ for p in kept:
 PY
 }
 
-# runtime_lines <dir>... — human-readable list; with several dirs each line
-# also names the project it belongs to (the menu's process pane)
+# runtime_lines [--pane] <dir>... — human-readable list. --pane is the menu's
+# process pane: each line also names its project, highlighted in color.
 runtime_lines() {
-  local many=0 port pid cpu rss cmd dir mb
-  [ $# -gt 1 ] && many=1
+  local pane=0 port pid cpu rss cmd dir mb portf
+  local c0='' cP='' cN='' cC='' cD='' cU='' cHot=''
+  if [ "${1:-}" = --pane ]; then
+    pane=1; shift
+    c0=$'\033[0m' cP=$'\033[1;93m' cN=$'\033[97m' cC=$'\033[1;97m'
+    cD=$'\033[96m' cU=$'\033[4;92m' cHot=$'\033[1;91m'
+  fi
   runtime_procs "$@" | while IFS="$TAB" read -r port pid cpu rss cmd dir; do
-    [ "$many" = 1 ] && cmd="$(printf '%-34s' "${cmd:0:34}") ${dir/#$HOME/~}"
     mb=$(( (${rss:-0} + 512) / 1024 ))
-    [ "$many" = 0 ] && [ ${#cmd} -gt 60 ] && cmd="${cmd:0:59}…"
-    if [ "$port" != - ]; then
-      printf '  %-7s PID %-6s %5s%% CPU %5s MB  %s  → http://localhost:%s\n' \
-        ":${port%%,*}" "$pid" "$cpu" "$mb" "$cmd" "${port%%,*}"
-    else
-      printf '  %-7s PID %-6s %5s%% CPU %5s MB  %s\n' "-" "$pid" "$cpu" "$mb" "$cmd"
+    if [ "$pane" = 1 ]; then
+      cmd="$cC$(printf '%-34s' "${cmd:0:34}")$c0 $cD${dir/#$HOME/~}$c0"
+    elif [ ${#cmd} -gt 60 ]; then
+      cmd="${cmd:0:59}…"
     fi
+    local cpuc="$cN"
+    [ "$pane" = 1 ] && [ "${cpu%%.*}" -ge 50 ] 2>/dev/null && cpuc="$cHot"
+    if [ "$port" != - ]; then portf=":${port%%,*}"; else portf="-"; fi
+    printf '  %s%-7s%s %sPID %-6s%s %s%5s%% CPU%s %s%5s MB%s  %s' \
+      "$cP" "$portf" "$c0" "$cN" "$pid" "$c0" "$cpuc" "$cpu" "$c0" "$cN" "$mb" "$c0" "$cmd"
+    if [ "$port" != - ]; then printf '  %s→ http://localhost:%s%s' "$cU" "${port%%,*}" "$c0"; fi
+    printf '\n'
   done
 }
 
@@ -843,8 +852,8 @@ while IFS= read -r d; do DIRS+=("$d"); done <<EOF
 $(printf '%s\n' "$DATA" | awk -F"$TAB" '$8 != "expired" && $3 != "" {print $3}' | sort -u)
 EOF
 PANE_MAX=8
-PANE="$(t pane_title)"
-if [ ${#DIRS[@]} -gt 0 ]; then PROCS="$(runtime_lines "${DIRS[@]}")"; else PROCS=""; fi
+PANE=$'\033[1;97m'"$(t pane_title)"$'\033[0m'
+if [ ${#DIRS[@]} -gt 0 ]; then PROCS="$(runtime_lines --pane "${DIRS[@]}")"; else PROCS=""; fi
 if [ -n "$PROCS" ]; then
   PANE="$PANE"$'\n'"$(printf '%s\n' "$PROCS" | sed -n "1,${PANE_MAX}p")"
   N="$(printf '%s\n' "$PROCS" | wc -l | tr -d ' ')"

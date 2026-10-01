@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- A process pane above the session list shows processes still running under any session's directory, busiest first: listening ports (with a `http://localhost:<port>` link) and dev watchers, with CPU, memory and project. Sessions with something running are marked `⚙`, and resuming one prints its processes first. Uses `ps` + `lsof`, cached for 5 seconds; shells, `claude` itself and the MCP servers it starts are skipped, and `$HOME` / `/` never count as a project.
+- A process pane above the session list shows processes still running under any session's directory, busiest first: listening ports (with a `http://localhost:<port>` link) and dev watchers, with CPU, memory and project, highlighted (yellow port, bright command, cyan project, green link, red when a process is at 50%+ CPU). Sessions with something running are marked `⚙`, and resuming one prints its processes first. Uses `ps` + `lsof`, cached for 5 seconds; shells, `claude` itself and the MCP servers it starts are skipped, and `$HOME` / `/` never count as a project.
 
 ## [0.2.0] - 2026-10-01
 
