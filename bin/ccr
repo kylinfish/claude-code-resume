@@ -19,6 +19,7 @@
 #   ccr -s|--sort <key>      Sort by: time (default) | title | dir
 #   ccr -l|--lang <zh|en>    UI language (default: auto-detect)
 #   ccr -h|--help            Show help
+#   ccr -V|--version         Show the version
 #
 # In-menu keys:
 #   Enter   resume
@@ -32,6 +33,8 @@
 # MIT License — see the LICENSE file. https://github.com/kylinfish/claude-code-resume
 #
 set -euo pipefail
+
+VERSION="0.2.0"
 
 CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 PROJECTS_DIR="${CCR_PROJECTS_DIR:-$CONFIG_DIR/projects}"
@@ -136,6 +139,7 @@ ccr — Claude Code Resume
   ccr -s|--sort <key>      排序：time(預設) | title | dir
   ccr -l|--lang <zh|en>    介面語言（預設：自動偵測 $LANG）
   ccr -h|--help            顯示說明
+  ccr -V|--version         顯示版本
 
 選單內快捷鍵：
   Enter   開啟（resume）
@@ -174,6 +178,7 @@ Usage:
   ccr -s|--sort <key>      Sort by: time (default) | title | dir
   ccr -l|--lang <zh|en>    UI language (default: auto-detect from $LANG)
   ccr -h|--help            Show this help
+  ccr -V|--version         Show the version
 
 In-menu keys:
   Enter   resume
@@ -573,6 +578,7 @@ case "${1:-}" in
     if [ "$(state_get expired 0)" = 1 ]; then state_set expired 0; else state_set expired 1; fi
     exit 0 ;;
   -h|--help) print_help; exit 0 ;;
+  -V|--version) printf '%s %s\n' "$(basename "$0")" "$VERSION"; exit 0 ;;
 esac
 
 command -v fzf     >/dev/null 2>&1 || { echo "$(t need_fzf)"    >&2; exit 1; }
@@ -598,6 +604,7 @@ while [ $# -gt 0 ]; do
     -f|--fork) FORK=1; shift ;;
     -x|--expired) EXPIRED=1; shift ;;
     -h|--help) print_help; exit 0 ;;
+    -V|--version) printf '%s %s\n' "$(basename "$0")" "$VERSION"; exit 0 ;;
     .)         FILTER="$PWD"; shift ;;
     -*)        echo "$(t unknown_opt "$1")" >&2; exit 1 ;;
     *)         FILTER="$(cd "$1" 2>/dev/null && pwd || printf '%s' "$1")"; shift ;;

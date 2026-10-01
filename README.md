@@ -84,6 +84,7 @@ ccr --last --fork        # fork the most recent session into a new session id
 ccr --expired            # also list sessions Claude has already cleaned up
 ccr -s title             # sort by title  (time | title | dir)
 ccr --lang zh            # force Chinese UI (default: auto-detect from $LANG)
+ccr --version            # print the version
 ccr --help
 ```
 
@@ -207,6 +208,7 @@ cd claude-code-resume
 | `ccr --expired` | 一併列出已被 Claude 清理的 session |
 | `ccr -s title` | 依標題排序（`time`｜`title`｜`dir`） |
 | `ccr --lang zh` | 強制中文介面（預設依 `$LANG` 自動偵測） |
+| `ccr --version` | 顯示版本 |
 | `ccr --help` | 顯示說明 |
 
 ### 選單內快捷鍵

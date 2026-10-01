@@ -6,11 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-01
+
 ### Added
 - Claude Desktop (Cowork) sessions are listed in magenta and open in the CLI as a fork of their transcript, so Desktop's copy is never written to. Override the location with `CCR_DESKTOP_DIR`.
 - `Ctrl-X` and `-x`/`--expired` list sessions whose transcripts Claude has already cleaned up (from `~/.claude/history.jsonl`), greyed out with their first prompt. Override the file with `CCR_HISTORY_FILE`.
 - The menu header warns when `cleanupPeriodDays` is unset or below 90 days, since Claude deletes idle transcripts after 30 days by default.
 - `Ctrl-F` in the menu and `-f`/`--fork` on the command line resume into a new session id via `claude --fork-session`, leaving the original session untouched.
+- `-V` / `--version` prints the version.
 
 ### Changed
 - `--last` / `-n N` only pick CLI sessions, never Desktop or expired ones.
@@ -36,4 +39,6 @@ Initial release.
 - Scan-path resolution: `CCR_PROJECTS_DIR` → `$CLAUDE_CONFIG_DIR/projects` → `~/.claude/projects`.
 - Installer (`install.sh`, with optional `--tip` shell hint), SVG banner + logo, and a bilingual README.
 
+[Unreleased]: https://github.com/kylinfish/claude-code-resume/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/kylinfish/claude-code-resume/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kylinfish/claude-code-resume/releases/tag/v0.1.0
