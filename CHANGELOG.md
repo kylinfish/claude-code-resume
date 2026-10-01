@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Session titles now prefer the name set with `/rename` or `claude -n` (`custom-title`, then `agent-name`) over the AI-generated title.
+- Index cache file renamed to `index-v2-*` so existing caches are rebuilt with the new titles.
+
 ## [0.1.0] - 2026-06-23
 
 Initial release.

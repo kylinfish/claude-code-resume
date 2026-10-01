@@ -209,7 +209,7 @@ now = time.time()
 cache_home = os.environ.get("CCR_CACHE") or os.path.join(
     os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "ccr")
 cache_file = os.path.join(
-    cache_home, "index-" + hashlib.md5(projects_dir.encode("utf-8")).hexdigest()[:8] + ".json")
+    cache_home, "index-v2-" + hashlib.md5(projects_dir.encode("utf-8")).hexdigest()[:8] + ".json")
 try:
     with open(cache_file, encoding="utf-8") as _cf:
         _cache = json.load(_cf)
@@ -308,7 +308,8 @@ for path in glob.glob(os.path.join(projects_dir, "*", "*.jsonl")):
     else:
         cache_dirty = True
         cwd = ""
-        ai_title = summary = first_user = last_prompt = last_user = None
+        custom_title = agent_name = ai_title = summary = None
+        first_user = last_prompt = last_user = None
         try:
             with open(path, "r", encoding="utf-8") as fh:
                 for line in fh:
@@ -322,7 +323,11 @@ for path in glob.glob(os.path.join(projects_dir, "*", "*.jsonl")):
                     ty = d.get("type")
                     if not cwd and d.get("cwd"):
                         cwd = d["cwd"]
-                    if ty == "ai-title" and d.get("aiTitle"):
+                    if ty == "custom-title" and d.get("customTitle"):
+                        custom_title = d["customTitle"]
+                    elif ty == "agent-name" and d.get("agentName"):
+                        agent_name = d["agentName"]
+                    elif ty == "ai-title" and d.get("aiTitle"):
                         ai_title = d["aiTitle"]
                     elif ty == "summary" and d.get("summary"):
                         summary = d["summary"]
@@ -336,7 +341,7 @@ for path in glob.glob(os.path.join(projects_dir, "*", "*.jsonl")):
                             last_user = txt
         except OSError:
             continue
-        title = ai_title or summary or (first_user[:60] if first_user else "") or "(untitled)"
+        title = custom_title or agent_name or ai_title or summary or (first_user[:60] if first_user else "") or "(untitled)"
         last  = last_prompt or last_user or ""
         if not cwd:
             cwd = os.path.dirname(path)
