@@ -43,6 +43,9 @@ Enter resume  ^R +remote  ^F fork  ^Y print cmd  │  sort ^T time ^O title ^G d
 - **Rich preview** — AI-generated title, timestamp, working directory, session id, and the last prompt.
 - **One-key resume** — `Enter` cd's into the project and runs `claude --resume`.
 - **Quick resume** — `ccr --last` / `ccr -n N` resume straight away without opening the menu.
+- **Claude Desktop sessions** — Cowork sessions from the Desktop app show up in magenta (`Desktop · <folder>`). They open in the CLI as a fork (`--fork-session`), so the original stays untouched in Desktop.
+- **Expired sessions** — Claude deletes transcripts idle for `cleanupPeriodDays` (default 30). `Ctrl-X` / `ccr --expired` lists the ones still in your prompt history, greyed out, with their first prompt. They can't be resumed.
+- **Retention warning** — the header warns when `cleanupPeriodDays` is unset or under 90 days.
 - **Fork** — `Ctrl-F` (or `ccr --fork`) resumes into a new session id with `--fork-session`, leaving the original untouched.
 - **Mobile handoff** — `Ctrl-R` resumes with `--remote-control` so you can continue on the Claude mobile app / web.
 - **Live sorting** — by time, title, or working directory; switch inside the menu without restarting.
@@ -78,6 +81,7 @@ ccr ~/code/myproject     # only sessions under a given directory
 ccr --last               # resume the most recent session, no menu
 ccr -n 2                 # resume the 2nd most recent session, no menu
 ccr --last --fork        # fork the most recent session into a new session id
+ccr --expired            # also list sessions Claude has already cleaned up
 ccr -s title             # sort by title  (time | title | dir)
 ccr --lang zh            # force Chinese UI (default: auto-detect from $LANG)
 ccr --help
@@ -91,6 +95,7 @@ ccr --help
 | `Ctrl-R` | resume **+ mobile Remote Control** (`--remote-control`)       |
 | `Ctrl-F` | fork: resume into a new session id (`--fork-session`)         |
 | `Ctrl-Y` | print the `cd … && claude --resume …` command without running |
+| `Ctrl-X` | show / hide cleaned-up (expired) sessions                     |
 | `Ctrl-T` | sort by time                                                  |
 | `Ctrl-O` | sort by title                                                 |
 | `Ctrl-G` | sort by working directory                                     |
@@ -108,6 +113,8 @@ ccr --help
 | `CCR_PROJECTS_DIR`  | override the scan path directly                                  |
 | `CLAUDE_CONFIG_DIR` | Claude's config dir; `ccr` scans `$CLAUDE_CONFIG_DIR/projects`   |
 | `CCR_CACHE`         | override the index cache dir (default `~/.cache/ccr`)            |
+| `CCR_DESKTOP_DIR`   | override the Claude Desktop Cowork sessions dir                  |
+| `CCR_HISTORY_FILE`  | override the prompt history file (default `~/.claude/history.jsonl`) |
 
 > Scan path resolution: `CCR_PROJECTS_DIR` → `$CLAUDE_CONFIG_DIR/projects` → `~/.claude/projects`.
 
@@ -119,6 +126,22 @@ Each Claude Code session is one `.jsonl` file under `~/.claude/projects/<slug>/`
 (`cwd`), and the file's modification time. It renders an aligned, colored list
 into `fzf`; the hidden columns feed the preview pane and the final
 `cd "$cwd" && claude --resume "$sessionId"`.
+
+Claude Desktop Cowork sessions live under
+`~/Library/Application Support/Claude/local-agent-mode-sessions/`: a
+`local_<id>.json` metadata file (title, last activity, granted folders) next to
+a sandbox folder holding the transcript. `ccr` resumes that transcript by path
+with `--fork-session`, so the new conversation is saved as a normal CLI session
+and Desktop's copy is never written to.
+
+Claude Code deletes transcripts that have been idle for `cleanupPeriodDays`
+(default 30). Their prompts stay in `~/.claude/history.jsonl`, which is where the
+expired rows come from. To keep sessions longer, add this to
+`~/.claude/settings.json`:
+
+```json
+{ "cleanupPeriodDays": 365 }
+```
 
 Sorting is done in the scan step, so the in-menu sort keys simply `reload` the
 list. A small on-disk index cache (`~/.cache/ccr`) keyed by file modification
@@ -145,6 +168,9 @@ hundreds of sessions.
 | 預覽 | AI 標題、時間、工作目錄、session id、最後一次 prompt |
 | 一鍵 resume | `Enter` 直接切目錄並 `claude --resume` |
 | 快速 resume | `ccr --last` / `ccr -n N` 不開選單直接續 |
+| Desktop 對話 | Claude Desktop 的 Cowork 對話以洋紅色顯示（`Desktop · <資料夾>`），以 `--fork-session` 在 CLI 開啟，Desktop 原對話不受影響 |
+| 已清理的 session | Claude 會刪除超過 `cleanupPeriodDays`（預設 30 天）沒活動的對話；`Ctrl-X`／`ccr --expired` 以灰色列出仍留在 prompt 歷史裡的 session 和第一句 prompt，但無法 resume |
+| 保留天數提醒 | `cleanupPeriodDays` 沒設定或小於 90 天時，選單標頭會提醒 |
 | 分支續接 | `Ctrl-F`（或 `ccr --fork`）以 `--fork-session` 開新 session id，原對話不受影響 |
 | 手機接手 | `Ctrl-R` 加 `--remote-control`，用 Claude 手機 app／網頁繼續 |
 | 即時排序 | 時間／標題／目錄，選單內直接切換 |
@@ -178,6 +204,7 @@ cd claude-code-resume
 | `ccr --last` | 不開選單，直接續最近一個 session |
 | `ccr -n N` | 不開選單，直接續第 N 新的 session |
 | `ccr --last --fork` | 把最近一個 session 分支成新的 session id |
+| `ccr --expired` | 一併列出已被 Claude 清理的 session |
 | `ccr -s title` | 依標題排序（`time`｜`title`｜`dir`） |
 | `ccr --lang zh` | 強制中文介面（預設依 `$LANG` 自動偵測） |
 | `ccr --help` | 顯示說明 |
@@ -190,6 +217,7 @@ cd claude-code-resume
 | `Ctrl-R` | 開啟 **+ 手機遠端控制**（`--remote-control`） |
 | `Ctrl-F` | 分支：以新的 session id 續接（`--fork-session`） |
 | `Ctrl-Y` | 只印出 `cd … && claude --resume …` 指令，不執行 |
+| `Ctrl-X` | 顯示／隱藏已清理的 session |
 | `Ctrl-T` | 依時間排序 |
 | `Ctrl-O` | 依標題排序 |
 | `Ctrl-G` | 依工作目錄排序 |
@@ -206,8 +234,12 @@ cd claude-code-resume
 | `CCR_PROJECTS_DIR` | 直接覆寫掃描路徑 |
 | `CLAUDE_CONFIG_DIR` | Claude 設定目錄；`ccr` 會掃 `$CLAUDE_CONFIG_DIR/projects` |
 | `CCR_CACHE` | 覆寫索引快取目錄（預設 `~/.cache/ccr`） |
+| `CCR_DESKTOP_DIR` | 覆寫 Claude Desktop Cowork 對話的路徑 |
+| `CCR_HISTORY_FILE` | 覆寫 prompt 歷史檔（預設 `~/.claude/history.jsonl`） |
 
 > 掃描路徑優先序：`CCR_PROJECTS_DIR` → `$CLAUDE_CONFIG_DIR/projects` → `~/.claude/projects`。
+
+> Claude Code 預設會刪除 30 天沒活動的對話。想保留更久，在 `~/.claude/settings.json` 加上 `"cleanupPeriodDays": 365`。
 
 ### 授權
 
