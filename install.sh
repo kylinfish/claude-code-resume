@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
-# ccr installer — symlinks bin/ccr into a directory on your PATH
-# (default: ~/.local/bin) and optionally adds a one-line shell startup tip.
+# ccr installer — symlinks bin/ccr (Claude Code) and bin/ccc (Claude Code +
+# Codex, the same script) into a directory on your PATH (default:
+# ~/.local/bin) and optionally adds a one-line shell startup tip.
 #
 set -euo pipefail
 
@@ -9,6 +10,7 @@ SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC="$SRC_DIR/bin/ccr"
 DEST_DIR="${CCR_INSTALL_DIR:-$HOME/.local/bin}"
 DEST="$DEST_DIR/ccr"
+DEST_CCC="$DEST_DIR/ccc"
 
 echo "ccr installer"
 echo "  source : $SRC"
@@ -21,11 +23,15 @@ for dep in fzf python3; do
   command -v "$dep" >/dev/null 2>&1 || echo "warning: '$dep' not found on PATH (required at runtime)"
 done
 command -v claude >/dev/null 2>&1 || echo "warning: 'claude' CLI not found on PATH (required to resume)"
+command -v codex  >/dev/null 2>&1 || echo "note: 'codex' CLI not found on PATH (only needed for ccc's Codex sessions)"
 
 mkdir -p "$DEST_DIR"
 ln -sf "$SRC" "$DEST"
+# ccc is the same script; it turns on Codex sessions when run under that name
+ln -sf "$SRC" "$DEST_CCC"
 chmod +x "$SRC"
 echo "linked: $DEST -> $SRC"
+echo "linked: $DEST_CCC -> $SRC  (Claude Code + Codex)"
 
 case ":$PATH:" in
   *":$DEST_DIR:"*) ;;
@@ -49,4 +55,4 @@ if [ "${1:-}" = "--tip" ]; then
   fi
 fi
 
-echo "done. Run: ccr --help"
+echo "done. Run: ccr --help   (or ccc --help for Claude Code + Codex)"

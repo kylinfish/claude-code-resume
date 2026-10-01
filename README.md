@@ -68,11 +68,11 @@ Enter resume  ^R +remote  ^F fork  ^Y print cmd  │  sort ^T time ^O title ^G d
 ```sh
 git clone https://github.com/kylinfish/claude-code-resume.git
 cd claude-code-resume
-./install.sh            # symlinks bin/ccr into ~/.local/bin
+./install.sh            # symlinks bin/ccr and bin/ccc into ~/.local/bin
 ./install.sh --tip      # also add a one-line startup hint to your shell rc
 ```
 
-Or just drop `bin/ccr` anywhere on your `PATH`.
+Or just drop `bin/ccr` anywhere on your `PATH` (and a `ccc` symlink to it if you use Codex).
 
 ## Usage
 
@@ -107,6 +107,24 @@ ccr --help
 > **Remote Control** requires a Claude Pro/Max/Team/Enterprise subscription, and
 > your machine must stay running and online — the phone/web is just a window into
 > the session that keeps running locally.
+
+## `ccc` — Claude Code + Codex
+
+`ccr` only looks at Claude Code. `ccc` is the same script run under another
+name: everything `ccr` does, plus your [OpenAI Codex](https://github.com/openai/codex)
+sessions in the same list.
+
+```sh
+ccc                      # Claude Code + Codex sessions, newest first
+ccc --last               # resume the most recent session of either tool
+```
+
+- A leading tool column says `claude` or `codex`. Because it is the first thing on each row, typing `^codex` or `^claude` in the search filters by tool (Desktop and expired sessions count as `claude`). The preview of a Codex row shows branch, model and token count.
+- `Enter` runs `codex resume <id>`, `Ctrl-F` runs `codex fork <id>`, `Ctrl-Y` prints the command. Codex has no Remote Control, so `Ctrl-R` refuses with a message.
+- `Ctrl-A` cycles the source filter: all → Claude → Codex.
+- Only interactive threads are listed (`cli` / `vscode` source, not archived); subagent, review and MCP threads are skipped.
+- Codex sessions are read from `~/.codex/state_*.sqlite` (read-only). That index is internal and versioned, so `ccc` looks its columns up by name and falls back to the `~/.codex/sessions/**/rollout-*.jsonl` files when it can't be used. Set `CODEX_HOME` to point elsewhere.
+- The process pane covers Codex projects too, and never lists `codex` itself or the MCP servers it starts.
 
 ## Environment variables
 
@@ -192,11 +210,25 @@ hundreds of sessions.
 ```sh
 git clone https://github.com/kylinfish/claude-code-resume.git
 cd claude-code-resume
-./install.sh          # 連結 bin/ccr 到 ~/.local/bin
+./install.sh          # 連結 bin/ccr 與 bin/ccc 到 ~/.local/bin
 ./install.sh --tip    # 另外在 shell 啟動時加一行提示
 ```
 
-也可以直接把 `bin/ccr` 放到任何 `PATH` 目錄下。
+也可以直接把 `bin/ccr` 放到任何 `PATH` 目錄下（有用 Codex 的話再建一個指向它的 `ccc` symlink）。
+
+### `ccc`：Claude Code + Codex
+
+`ccr` 只看 Claude Code。`ccc` 是同一支腳本換個名字執行：`ccr` 的所有功能，再加上
+[OpenAI Codex](https://github.com/openai/codex) 的 session，放在同一個列表。
+
+| 項目 | 說明 |
+| ---- | ---- |
+| 工具欄 | 列表最前面一欄是 `claude` 或 `codex`；因為在行首，搜尋時輸入 `^codex` 或 `^claude` 就能依工具篩選（Desktop 與已清理的 session 算 `claude`）。Codex 的預覽顯示 branch、model、token 用量 |
+| 動作 | `Enter` 執行 `codex resume <id>`，`Ctrl-F` 執行 `codex fork <id>`，`Ctrl-Y` 印出指令；Codex 沒有 Remote Control，`Ctrl-R` 會提示並取消 |
+| 來源切換 | `Ctrl-A`：全部 → Claude → Codex |
+| 過濾 | 只列互動式 thread（`cli`／`vscode` 來源、未封存），不列 subagent、review、MCP thread |
+| 資料來源 | 以唯讀方式讀 `~/.codex/state_*.sqlite`；這是 Codex 內部、會改版的格式，所以依欄位名稱讀取，讀不到時改讀 `~/.codex/sessions/**/rollout-*.jsonl`；可用 `CODEX_HOME` 指定其他位置 |
+| `ccc --last` | 續兩邊之中最近的一個 session |
 
 ### 用法
 

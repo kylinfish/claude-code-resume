@@ -40,7 +40,15 @@ CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 PROJECTS_DIR="${CCR_PROJECTS_DIR:-$CONFIG_DIR/projects}"
 HISTORY_FILE="${CCR_HISTORY_FILE:-$CONFIG_DIR/history.jsonl}"
 DESKTOP_DIR="${CCR_DESKTOP_DIR:-$HOME/Library/Application Support/Claude/local-agent-mode-sessions}"
+CODEX_DIR="${CODEX_HOME:-$HOME/.codex}"
 TAB=$'\t'
+
+# Invoked as `ccc` (or with CCR_CODEX=1): also list OpenAI Codex sessions.
+PROG="$(basename "$0")"
+case "$PROG" in
+  ccc*) CODEX_MODE=1 ;;
+  *)    CODEX_MODE="${CCR_CODEX:-0}" ;;
+esac
 
 # ---------------------------------------------------------------------------
 # i18n
@@ -122,13 +130,56 @@ t() {
     en:pane_more)    fmt='  … %s more' ;;
     zh:resume_procs) fmt='⚙ 這個專案背後仍在執行、可能佔用資源的 process：' ;;
     en:resume_procs) fmt='⚙ still running under this project (may be using resources):' ;;
+    zh:header3)      fmt=$'^A 來源切換：全部 → Claude → Codex  │  或輸入 ^claude／^codex 篩選' ;;
+    en:header3)      fmt=$'^A cycle source: all → Claude → Codex  │  or type ^claude / ^codex' ;;
+    zh:need_codex)   fmt='ccr：找不到 codex CLI，無法 resume Codex session' ;;
+    en:need_codex)   fmt='ccr: the codex CLI is not on PATH; cannot resume a Codex session' ;;
+    zh:codex_no_rc)  fmt='ccr：Codex 沒有 Remote Control；請改用 Enter（resume）或 ^F（fork）' ;;
+    en:codex_no_rc)  fmt='ccr: Codex has no Remote Control; use Enter (resume) or ^F (fork) instead' ;;
+    zh:pv_codex)     fmt='🤖 Codex session · Enter = codex resume · ^F = codex fork' ;;
+    en:pv_codex)     fmt='🤖 Codex session · Enter = codex resume · ^F = codex fork' ;;
     *)               fmt="$k" ;;
   esac
+  # messages say whichever name we were run as (ccr / ccc)
+  fmt="${fmt//ccr：/${PROG}：}"
+  fmt="${fmt//ccr: /${PROG}: }"
   # shellcheck disable=SC2059
   printf "$fmt" "$@"
 }
 
 print_help() {
+  if [ "$CODEX_MODE" = 1 ]; then
+    print_help_body | sed '1s/.*/ccc — Claude Code + Codex Resume/; s/^  ccr/  ccc/'
+    if [ "$LANG_MODE" = zh ]; then
+      cat <<'EOF'
+
+Codex（ccc 專屬）：
+  也會列出 OpenAI Codex 的 session（讀 ~/.codex/state_*.sqlite，失敗時改讀 rollout 檔）。
+  Enter → codex resume <id>，Ctrl-F → codex fork <id>；Codex 沒有 Remote Control。
+  Ctrl-A  來源切換：全部 → Claude → Codex
+  列表最前面一欄是 claude／codex；輸入 ^claude 或 ^codex 可直接篩選
+  （Desktop 與已清理的 session 算 claude）
+  CODEX_HOME=<dir>        覆寫 Codex 目錄（預設 ~/.codex）
+EOF
+    else
+      cat <<'EOF'
+
+Codex (ccc only):
+  OpenAI Codex sessions are listed too (from ~/.codex/state_*.sqlite, falling
+  back to the rollout files). Enter → codex resume <id>, Ctrl-F → codex fork
+  <id>; Codex has no Remote Control.
+  Ctrl-A  cycle source: all → Claude → Codex
+  The first column is claude / codex; type ^claude or ^codex to filter by it
+  (Desktop and expired sessions count as claude).
+  CODEX_HOME=<dir>        override the Codex dir (default: ~/.codex)
+EOF
+    fi
+  else
+    print_help_body
+  fi
+}
+
+print_help_body() {
   if [ "$LANG_MODE" = zh ]; then
     cat <<'EOF'
 ccr — Claude Code Resume
@@ -234,6 +285,26 @@ resume_session() {
   exec "${cmd[@]}"
 }
 
+# resume_codex <id> <cwd> [fork:0|1] — cd into the project and resume in Codex.
+resume_codex() {
+  local sid="$1" cwd="$2" fork="${3:-0}"
+  [ -n "$sid" ] || { echo "$(t parse_sid)" >&2; exit 1; }
+  command -v codex >/dev/null 2>&1 || { echo "$(t need_codex)" >&2; exit 1; }
+  if [ -n "$cwd" ] && [ ! -d "$cwd" ]; then
+    echo "$(t dir_missing "$cwd")" >&2; exit 1
+  fi
+  local cmd=(codex resume "$sid")
+  [ "$fork" = 1 ] && cmd=(codex fork "$sid")
+  local procs
+  procs="$(runtime_lines "$cwd")"
+  if [ -n "$procs" ]; then printf '%s\n%s\n' "$(t resume_procs)" "$procs"; fi
+  echo "→ cd $cwd"
+  echo "→ ${cmd[*]}"
+  [ -n "${CCR_STATE:-}" ] && rm -f "$CCR_STATE"
+  cd "$cwd"
+  exec "${cmd[@]}"
+}
+
 # ---------------------------------------------------------------------------
 # preview subcommand: invoked by fzf with the highlighted row's fields
 #   $1 title  $2 when(human)  $3 rel  $4 cwd  $5 last_prompt  $6 sessionId
@@ -251,6 +322,10 @@ do_preview() {
     printf '%s📁%s %s\n%s🔑%s %s\n' "$C_KEY" "$C_RESET" "$cwd" "$C_KEY" "$C_RESET" "$sid"
     [ -n "$extra" ] && printf '\n%s%s%s\n%s\n' "$C_KEY" "$(t pv_first)" "$C_RESET" "$extra"
     return 0
+  fi
+  if [ "$kind" = codex ]; then
+    printf '%s%s%s\n' $'\033[36m' "$(t pv_codex)" "$C_RESET"
+    [ -n "$extra" ] && printf '%s🌿%s %s\n' "$C_KEY" "$C_RESET" "$extra"
   fi
   if [ "$kind" = desktop ]; then
     printf '%s%s%s\n' "$C_DESK" "$(t pv_desktop)" "$C_RESET"
@@ -280,8 +355,8 @@ do_preview() {
 # ---------------------------------------------------------------------------
 scan() {
   python3 - "$PROJECTS_DIR" "${1:-}" "${2:-time}" "$LANG_MODE" "${3:-0}" \
-    "$HISTORY_FILE" "$DESKTOP_DIR" <<'PY'
-import sys, os, json, glob, time, unicodedata, hashlib
+    "$HISTORY_FILE" "$DESKTOP_DIR" "$CODEX_MODE" "$CODEX_DIR" "${4:-all}" <<'PY'
+import sys, os, re, json, glob, time, unicodedata, hashlib
 
 projects_dir = sys.argv[1]
 filter_dir   = sys.argv[2]
@@ -290,6 +365,9 @@ lang         = sys.argv[4]
 show_expired = sys.argv[5] == "1"
 history_file = sys.argv[6]
 desktop_dir  = sys.argv[7]
+with_codex   = sys.argv[8] == "1"
+codex_dir    = sys.argv[9]
+source       = sys.argv[10]  # all | claude | codex
 now = time.time()
 
 # --- index cache: avoid re-parsing jsonl files whose mtime is unchanged ---
@@ -320,6 +398,8 @@ C_TITLE_LO = col(244)             # dim (untitled / system)
 C_PATH     = col(110)             # soft blue
 C_DESKTOP  = col(176)             # soft magenta (Claude Desktop rows)
 C_EXPIRED  = col(240)             # dark grey (expired rows)
+C_CODEX    = col(80)              # teal (Codex rows)
+C_CLAUDE   = col(173)             # orange (Claude tag in the ccc tool column)
 
 def dwidth(s):
     return sum(2 if unicodedata.east_asian_width(c) in ("W", "F") else 1 for c in s)
@@ -449,7 +529,14 @@ def add_row(epoch, sid, cwd, title, last, kind, target, extra, path_label, pathc
         relc = recency_color(epoch)
         titlec = C_TITLE_LO if (title == "(untitled)" or title.startswith("<")) else C_TITLE
     mark = "⚙ " if kind != "expired" and cwd.rstrip("/") in busy else "  "
-    display = (f"{relc}{fit(rel, 9, 'right')}{R} {SEP} "
+    # ccc: a leading tool column, so typing ^claude / ^codex filters by tool
+    tool = ""
+    if with_codex:
+        tname, tc = ("codex", C_CODEX) if kind == "codex" else ("claude", C_CLAUDE)
+        if kind == "expired":
+            tc = C_EXPIRED
+        tool = f"{tc}{fit(tname, 6)}{R} {SEP} "
+    display = (f"{tool}{relc}{fit(rel, 9, 'right')}{R} {SEP} "
                f"{C_MID}{mark}{R}{titlec}{fit(title, 42)}{R} {SEP} {pathc}{path_label}{R}")
     rows.append((epoch, title, path_label, kind == "expired",
                  "\t".join([display, sid, cwd, when, rel, title, last, kind, target, extra])))
@@ -501,6 +588,90 @@ for meta_path in glob.glob(os.path.join(desktop_dir, "*", "*", "local_*.json")):
     add_row(epoch, sid, run_dir, title, last, "desktop", transcript,
             ", ".join(shorten_path(f) for f in folders), label, C_DESKTOP)
 
+# --- 2b. OpenAI Codex sessions (ccc only) ---
+# Codex keeps a thread index in <codex>/state_<N>.sqlite. It is internal and
+# versioned, so read it read-only, look columns up by name, and fall back to
+# the rollout files' session_meta lines when it can't be used.
+def codex_rows():
+    import sqlite3
+    out = []
+    dbs = sorted(glob.glob(os.path.join(codex_dir, "state_*.sqlite")),
+                 key=lambda p: int(re.sub(r"\D", "", os.path.basename(p)) or 0))
+    if dbs:
+        try:
+            con = sqlite3.connect("file:" + dbs[-1] + "?mode=ro", uri=True, timeout=1)
+            con.row_factory = sqlite3.Row
+            cols = {r[1] for r in con.execute("pragma table_info(threads)")}
+            pick = lambda *names: next((n for n in names if n in cols), None)
+            sel = {k: pick(*v) for k, v in {
+                "id": ("id",), "cwd": ("cwd",), "updated": ("updated_at", "recency_at"),
+                "name": ("name",), "title": ("title",), "preview": ("preview", "first_user_message"),
+                "branch": ("git_branch",), "model": ("model",), "tokens": ("tokens_used",),
+                "archived": ("archived",), "source": ("source",)}.items()}
+            if not (sel["id"] and sel["cwd"] and sel["updated"]):
+                raise ValueError("unexpected threads schema")
+            q = "select " + ", ".join(f"{v} as {k}" for k, v in sel.items() if v) + " from threads"
+            for r in con.execute(q):
+                r = dict(r)
+                if r.get("archived"):
+                    continue
+                if str(r.get("source") or "cli") not in ("cli", "vscode"):
+                    continue  # subagents, reviews, mcp/exec threads
+                out.append(r)
+            con.close()
+            return out
+        except Exception:
+            out = []
+    names = {}
+    try:
+        with open(os.path.join(codex_dir, "session_index.jsonl"), encoding="utf-8") as fh:
+            for line in fh:
+                try:
+                    d = json.loads(line)
+                    names[d["id"]] = d.get("thread_name") or ""
+                except Exception:
+                    pass
+    except OSError:
+        pass
+    for path in glob.glob(os.path.join(codex_dir, "sessions", "*", "*", "*", "rollout-*.jsonl")):
+        try:
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                meta = json.loads(fh.readline()).get("payload") or {}
+                if str(meta.get("source") or "cli") not in ("cli", "vscode"):
+                    continue
+                preview = ""
+                for i, line in enumerate(fh):
+                    if i > 200:
+                        break
+                    try:
+                        d = json.loads(line)
+                    except Exception:
+                        continue
+                    pl = d.get("payload") or {}
+                    if d.get("type") == "event_msg" and pl.get("type") == "user_message":
+                        preview = pl.get("message") or ""
+                        break
+            out.append({"id": meta.get("id"), "cwd": meta.get("cwd") or "",
+                        "updated": os.path.getmtime(path), "name": names.get(meta.get("id"), ""),
+                        "preview": preview, "branch": (meta.get("git") or {}).get("branch") or ""})
+        except Exception:
+            continue
+    return out
+
+if with_codex:
+    for r in codex_rows():
+        sid, cwd = r.get("id") or "", r.get("cwd") or ""
+        if not sid or not in_filter(cwd):
+            continue
+        upd = r.get("updated") or 0
+        epoch = upd / 1000.0 if upd > 1e12 else float(upd)
+        title = clean(r.get("name")) or clean(r.get("preview"))[:60] or clean(r.get("title"))[:60] or "(untitled)"
+        bits = [b for b in (r.get("branch"), r.get("model")) if b]
+        if r.get("tokens"):
+            bits.append(f"{int(r['tokens']):,} tokens")
+        add_row(epoch, sid, cwd, title, clean(r.get("preview") or r.get("title")),
+                "codex", "", " · ".join(bits), shorten_path(cwd), C_CODEX)
+
 # --- 3. expired sessions: still in history.jsonl, transcript cleaned up ---
 if show_expired and os.path.isfile(history_file):
     hist = {}
@@ -541,6 +712,9 @@ else:
     rows.sort(key=lambda r: r[0], reverse=True)
 # expired rows can't be resumed: keep them below everything else
 rows.sort(key=lambda r: r[3])
+if source != "all":
+    want = {"codex"} if source == "codex" else {"cli", "desktop", "expired"}
+    rows = [r for r in rows if r[-1].split("\t")[7] in want]
 
 for r in rows:
     print(r[-1])
@@ -618,7 +792,14 @@ DEV_CMD = re.compile(
     r"php|air|cargo|docker|serverless|sls|sam|http-server|live-server|"
     r"browser-sync|watchman|entr|watchexec)(\s|$)")
 # Never report these: shells, editors, claude itself, and this tool.
-SKIP_CMD = re.compile(r"(^|/)(-?zsh|-?bash|-?sh|fish|claude|fzf|ccr|vim|nvim|tmux|login)(\s|$)")
+SKIP_CMD = re.compile(r"(^|/)(-?zsh|-?bash|-?sh|fish|claude|codex|fzf|ccr|ccc|vim|nvim|tmux|login)(\s|$)")
+AGENTS = ("claude", "codex")
+def is_agent(c):
+    # claude, codex, or a node/bun shim running one (`node …/bin/codex resume`)
+    w = c.split()
+    names = [os.path.basename(x) for x in w[:2]]
+    return bool(names) and (names[0] in AGENTS or
+                            (names[0] in ("node", "bun") and len(names) > 1 and names[1] in AGENTS))
 
 def run(args):
     try:
@@ -647,11 +828,11 @@ def collect():
         return os.path.basename(c.split()[0]) if c.split() else ""
     cand = []
     for p, e in procs.items():
-        if SKIP_CMD.search(cmd_name(e["cmd"])):
+        if SKIP_CMD.search(cmd_name(e["cmd"])) or is_agent(e["cmd"]):
             continue
-        # MCP servers etc. started directly by a claude process are not demos
+        # MCP servers etc. started directly by a claude/codex process are not demos
         parent = procs.get(e["ppid"])
-        if parent and cmd_name(parent["cmd"]) == "claude" and not e["ports"]:
+        if parent and is_agent(parent["cmd"]) and not e["ports"]:
             continue
         if e["ports"] or DEV_CMD.search(e["cmd"]):
             cand.append(p)
@@ -762,7 +943,14 @@ case "${1:-}" in
   __list)    # __list [sort] — remembers the sort so ^X can reload without it
     shift
     if [ -n "${1:-}" ]; then state_set sort "$1"; fi
-    scan "${CCR_FILTER:-}" "$(state_get sort "${1:-time}")" "$(state_get expired 0)"
+    scan "${CCR_FILTER:-}" "$(state_get sort "${1:-time}")" "$(state_get expired 0)" "$(state_get source all)"
+    exit 0 ;;
+  __cycle_source)  # all -> claude -> codex -> all
+    case "$(state_get source all)" in
+      all)    state_set source claude ;;
+      claude) state_set source codex ;;
+      *)      state_set source all ;;
+    esac
     exit 0 ;;
   __toggle_expired)
     if [ "$(state_get expired 0)" = 1 ]; then state_set expired 0; else state_set expired 1; fi
@@ -823,13 +1011,15 @@ esac
 export CCR_LANG="$LANG_MODE"
 export CCR_FILTER="$FILTER"
 export CCR_SELF="$0"
+export CCR_CODEX="$CODEX_MODE"
 
 # Quick resume: skip the menu and resume the Nth CLI session in sorted order.
 if [ -n "$NTH" ]; then
-  LINE="$(scan "$FILTER" "$SORT" 0 | awk -F"$TAB" '$8 == "cli"' | sed -n "${NTH}p")"
+  LINE="$(scan "$FILTER" "$SORT" 0 | awk -F"$TAB" '$8 == "cli" || $8 == "codex"' | sed -n "${NTH}p")"
   [ -n "$LINE" ] || { echo "$(t nth_oob "$NTH")" >&2; exit 1; }
   SID="$(printf '%s' "$LINE" | cut -d"$TAB" -f2)"
   CWD="$(printf '%s' "$LINE" | cut -d"$TAB" -f3)"
+  if [ "$(printf '%s' "$LINE" | cut -d"$TAB" -f8)" = codex ]; then resume_codex "$SID" "$CWD" "$FORK"; fi
   resume_session "$SID" "$CWD" 0 "$FORK"
 fi
 
@@ -868,6 +1058,9 @@ fi
 PANE="$PANE"$'\n\033[38;5;240m'"$(printf '─%.0s' $(seq 1 72))"$'\033[0m'
 
 HEADER="$PANE"$'\n'"$(t header)"$'\n'"$(t header2)"
+[ "$CODEX_MODE" = 1 ] && HEADER="$HEADER"$'\n'"$(t header3)"
+SOURCE_BIND=()
+[ "$CODEX_MODE" = 1 ] && SOURCE_BIND=(--bind 'ctrl-a:execute-silent("$CCR_SELF" __cycle_source)+reload("$CCR_SELF" __list)')
 read -r KEEP_DAYS KEEP_SET <<EOF
 $(retention_days)
 EOF
@@ -892,6 +1085,7 @@ RESULT="$(
     --bind 'ctrl-o:reload("$CCR_SELF" __list title)+change-prompt([title] ❯ )' \
     --bind 'ctrl-g:reload("$CCR_SELF" __list dir)+change-prompt([dir] ❯ )' \
     --bind 'ctrl-x:execute-silent("$CCR_SELF" __toggle_expired)+reload("$CCR_SELF" __list)' \
+    ${SOURCE_BIND[@]+"${SOURCE_BIND[@]}"} \
     --preview="\"\$CCR_SELF\" __preview {6} {4} {5} {3} {7} {2} {8} {9} {10}" \
     --preview-window='down,45%,wrap,border-top'
 )" || { echo "$(t cancelled)"; exit 0; }
@@ -915,6 +1109,16 @@ case "$KIND" in
     exit 1 ;;
   desktop)  # resume the Cowork transcript by path, always as a fork
     FORK=1; SID="$TARGET" ;;
+  codex)
+    case "$KEY" in
+      ctrl-y)
+        if [ "$FORK" = 1 ]; then printf 'cd %q && codex fork %q\n' "$CWD" "$SID"
+        else printf 'cd %q && codex resume %q\n' "$CWD" "$SID"; fi
+        exit 0 ;;
+      ctrl-r) echo "$(t codex_no_rc)" >&2; exit 1 ;;
+      ctrl-f) resume_codex "$SID" "$CWD" 1 ;;
+      *)      resume_codex "$SID" "$CWD" "$FORK" ;;
+    esac ;;
 esac
 
 case "$KEY" in

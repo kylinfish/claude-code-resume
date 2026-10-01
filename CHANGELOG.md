@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `ccc` (Claude Code + Codex): `bin/ccc` is a symlink to `ccr`; run under that name it also lists OpenAI Codex sessions from `~/.codex/state_*.sqlite` (read-only, columns looked up by name, falling back to the rollout files). `Enter` runs `codex resume`, `Ctrl-F` runs `codex fork`, a leading `claude` / `codex` column lets you filter by typing `^claude` / `^codex`, `Ctrl-A` cycles all / Claude / Codex, and `--last` considers both tools. Subagent, review, MCP and archived threads are skipped; `CODEX_HOME` is honoured. `install.sh` links both commands.
+
+### Changed
+- The process pane never lists coding agents themselves (`claude`, `codex`, including `node …/codex` shims) or the MCP servers they start.
+- Messages name the command that was run (`ccr:` or `ccc:`).
+
 ## [0.3.0] - 2026-10-01
 
 ### Added
