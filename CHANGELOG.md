@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-01
+
 ### Added
 - A process pane above the session list shows processes still running under any session's directory, busiest first: listening ports (with a `http://localhost:<port>` link) and dev watchers, with CPU, memory and project, highlighted (yellow port, bright command, cyan project, green link, red when a process is at 50%+ CPU). Sessions with something running are marked `⚙`, and resuming one prints its processes first. Uses `ps` + `lsof`, cached for 5 seconds; shells, `claude` itself and the MCP servers it starts are skipped, and `$HOME` / `/` never count as a project.
 
@@ -42,6 +44,7 @@ Initial release.
 - Scan-path resolution: `CCR_PROJECTS_DIR` → `$CLAUDE_CONFIG_DIR/projects` → `~/.claude/projects`.
 - Installer (`install.sh`, with optional `--tip` shell hint), SVG banner + logo, and a bilingual README.
 
-[Unreleased]: https://github.com/kylinfish/claude-code-resume/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/kylinfish/claude-code-resume/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/kylinfish/claude-code-resume/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/kylinfish/claude-code-resume/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kylinfish/claude-code-resume/releases/tag/v0.1.0
