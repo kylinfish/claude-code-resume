@@ -114,6 +114,14 @@ t() {
     en:pv_folders)   fmt='📂 granted folders' ;;
     zh:pv_first)     fmt='💬 第一句 prompt' ;;
     en:pv_first)     fmt='💬 first prompt' ;;
+    zh:pane_title)   fmt='⚙ 背後正在跑的 process（所有 session 專案，依 CPU 排序）' ;;
+    en:pane_title)   fmt='⚙ processes running under your session projects (by CPU)' ;;
+    zh:pane_none)    fmt='  （沒有偵測到正在跑的 port 或 watcher）' ;;
+    en:pane_none)    fmt='  (no listening ports or watchers detected)' ;;
+    zh:pane_more)    fmt='  …還有 %s 個' ;;
+    en:pane_more)    fmt='  … %s more' ;;
+    zh:resume_procs) fmt='⚙ 這個專案背後仍在執行、可能佔用資源的 process：' ;;
+    en:resume_procs) fmt='⚙ still running under this project (may be using resources):' ;;
     *)               fmt="$k" ;;
   esac
   # shellcheck disable=SC2059
@@ -158,6 +166,8 @@ ccr — Claude Code Resume
 
 Claude Desktop（Cowork）的對話也會列出，並一律以 fork 在 CLI 開啟，
 Desktop 裡的原對話不會變動。
+選單上方的 process 區會列出所有 session 目錄底下仍在跑的 port／watcher，
+有 process 的 session 標 ⚙，resume 前也會印出（需要 lsof）。
 EOF
   else
     cat <<'EOF'
@@ -197,6 +207,9 @@ Environment:
 
 Claude Desktop (Cowork) sessions are listed too; they always open in the CLI
 as a fork, so the original stays untouched in Desktop.
+A process pane above the list shows ports/watchers still running under any
+session's directory; sessions with one get a ⚙ mark, and resuming prints them
+(needs lsof).
 EOF
   fi
 }
@@ -211,6 +224,9 @@ resume_session() {
   local cmd=(claude --resume "$sid")
   [ "$remote" = 1 ] && cmd+=(--remote-control)
   [ "$fork" = 1 ] && cmd+=(--fork-session)
+  local procs
+  procs="$(runtime_lines "$cwd")"
+  if [ -n "$procs" ]; then printf '%s\n%s\n' "$(t resume_procs)" "$procs"; fi
   echo "→ cd $cwd"
   echo "→ ${cmd[*]}"
   [ -n "${CCR_STATE:-}" ] && rm -f "$CCR_STATE"
@@ -417,6 +433,9 @@ def recency_color(epoch):
     d = now - epoch
     return C_RECENT if d < 86400 else (C_MID if d < 7*86400 else C_OLD)
 
+# session dirs with processes still running under them (from the process pane)
+busy = set(filter(None, os.environ.get("CCR_BUSY", "").split("\n")))
+
 # rows: (epoch, title, sort_dir, is_expired, tsv)
 rows = []
 live_sids = set()
@@ -429,8 +448,9 @@ def add_row(epoch, sid, cwd, title, last, kind, target, extra, path_label, pathc
     else:
         relc = recency_color(epoch)
         titlec = C_TITLE_LO if (title == "(untitled)" or title.startswith("<")) else C_TITLE
+    mark = "⚙ " if kind != "expired" and cwd.rstrip("/") in busy else "  "
     display = (f"{relc}{fit(rel, 9, 'right')}{R} {SEP} "
-               f"{titlec}{fit(title, 44)}{R} {SEP} {pathc}{path_label}{R}")
+               f"{C_MID}{mark}{R}{titlec}{fit(title, 42)}{R} {SEP} {pathc}{path_label}{R}")
     rows.append((epoch, title, path_label, kind == "expired",
                  "\t".join([display, sid, cwd, when, rel, title, last, kind, target, extra])))
 
@@ -564,6 +584,167 @@ state_set() {  # state_set <key> <value>
 }
 
 # ---------------------------------------------------------------------------
+# runtime: processes still running under a session's directory — listening
+# ports (dev servers an agent left running) and known dev commands/watchers.
+#   runtime_procs <dir>... -> TSV rows:
+#     ports|- \t pid \t cpu% \t rss_kb \t command \t dir
+#   dir is the deepest of the given dirs the process runs under. $HOME and /
+#   are ignored as targets — everything would match them.
+#   (never an empty field: bash `read` would collapse the tabs and shift columns)
+# Rows come from `ps` + `lsof`, cached for a few seconds so moving through the
+# menu doesn't re-run them for every highlighted row.
+# ---------------------------------------------------------------------------
+runtime_procs() {
+  python3 - "$(id -u)" "$@" <<'PY'
+import sys, os, re, json, time, subprocess
+
+uid  = sys.argv[1]
+home = os.path.expanduser("~")
+targets = sorted({t.rstrip("/") for t in sys.argv[2:]
+                  if t and t.rstrip("/") not in ("", home)}, key=len, reverse=True)
+if not targets:
+    sys.exit(0)
+TTL = 5
+
+cache_home = os.environ.get("CCR_CACHE") or os.path.join(
+    os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "ccr")
+cache_file = os.path.join(cache_home, "runtime.json")
+
+# Commands worth reporting even without a listening port.
+DEV_CMD = re.compile(
+    r"(^|[/\s])(vite|next|nuxt|webpack|rollup|esbuild|parcel|tsc|nodemon|"
+    r"jest|vitest|playwright|storybook|astro|remix|gatsby|turbo|nx|npm|pnpm|"
+    r"yarn|bun|deno|node|python[0-9.]*|uvicorn|gunicorn|flask|rails|puma|"
+    r"php|air|cargo|docker|serverless|sls|sam|http-server|live-server|"
+    r"browser-sync|watchman|entr|watchexec)(\s|$)")
+# Never report these: shells, editors, claude itself, and this tool.
+SKIP_CMD = re.compile(r"(^|/)(-?zsh|-?bash|-?sh|fish|claude|fzf|ccr|vim|nvim|tmux|login)(\s|$)")
+
+def run(args):
+    try:
+        return subprocess.run(args, capture_output=True, text=True, timeout=3).stdout
+    except Exception:
+        return ""
+
+def collect():
+    procs = {}  # pid -> dict
+    for line in run(["ps", "-axo", "pid=,ppid=,pcpu=,rss=,uid=,command="]).splitlines():
+        parts = line.split(None, 5)
+        if len(parts) < 6 or parts[4] != uid:
+            continue
+        pid, ppid, cpu, rss, _, cmd = parts
+        procs[pid] = {"ppid": ppid, "cpu": cpu, "rss": rss, "cmd": cmd, "ports": []}
+    # listening TCP ports of this user's processes
+    pid = None
+    for line in run(["lsof", "-nP", "-a", "-u", uid, "-iTCP", "-sTCP:LISTEN", "-Fpn"]).splitlines():
+        if line.startswith("p"):
+            pid = line[1:]
+        elif line.startswith("n") and pid in procs:
+            port = line.rsplit(":", 1)[-1]
+            if port.isdigit() and port not in procs[pid]["ports"]:
+                procs[pid]["ports"].append(port)
+    def cmd_name(c):
+        return os.path.basename(c.split()[0]) if c.split() else ""
+    cand = []
+    for p, e in procs.items():
+        if SKIP_CMD.search(cmd_name(e["cmd"])):
+            continue
+        # MCP servers etc. started directly by a claude process are not demos
+        parent = procs.get(e["ppid"])
+        if parent and cmd_name(parent["cmd"]) == "claude" and not e["ports"]:
+            continue
+        if e["ports"] or DEV_CMD.search(e["cmd"]):
+            cand.append(p)
+    if cand:
+        pid = None
+        for line in run(["lsof", "-a", "-d", "cwd", "-p", ",".join(cand), "-Fpn"]).splitlines():
+            if line.startswith("p"):
+                pid = line[1:]
+            elif line.startswith("n") and pid in procs:
+                procs[pid]["cwd"] = line[1:]
+    return {"at": time.time(), "procs": procs, "cand": cand}
+
+data = None
+try:
+    with open(cache_file, encoding="utf-8") as fh:
+        data = json.load(fh)
+    if time.time() - data.get("at", 0) > TTL:
+        data = None
+except Exception:
+    data = None
+if data is None:
+    data = collect()
+    try:
+        os.makedirs(cache_home, exist_ok=True)
+        tmp = cache_file + ".tmp." + str(os.getpid())
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+        os.replace(tmp, cache_file)
+    except Exception:
+        pass
+
+procs = data["procs"]
+def owner(p):
+    c = procs[p].get("cwd", "")
+    for t in targets:  # deepest first
+        if c == t or c.startswith(t + "/"):
+            return t
+    return None
+hits = [p for p in data["cand"] if p in procs and owner(p)]
+
+def ancestors(p):
+    seen = set()
+    while p in procs and p not in seen:
+        seen.add(p)
+        p = procs[p]["ppid"]
+        yield p
+
+# One row per process tree: keep port holders first, then any other process
+# that is neither an ancestor nor a descendant of one already kept.
+kept = [p for p in hits if procs[p]["ports"]]
+for p in sorted((p for p in hits if not procs[p]["ports"]), key=int):
+    if any(a in kept for a in ancestors(p)):
+        continue
+    if any(p in set(ancestors(k)) for k in kept):
+        continue
+    kept.append(p)
+
+def short_cmd(c, t):
+    # program name only (not /opt/homebrew/Cellar/…/python3.13), args with
+    # the project dir shown as ./ and $HOME as ~/
+    words = c.split()
+    if not words:
+        return c
+    rest = " ".join(words[1:]).replace(t + "/", "./").replace(home + "/", "~/")
+    return (os.path.basename(words[0]) + " " + rest).strip()
+
+# busiest first, so the pane shows what is eating resources at the top
+kept.sort(key=lambda p: (-float(procs[p]["cpu"] or 0), -int(procs[p]["rss"] or 0)))
+for p in kept:
+    e, t = procs[p], owner(p)
+    print("\t".join([",".join(e["ports"]) or "-", p, e["cpu"], e["rss"], short_cmd(e["cmd"], t), t]))
+PY
+}
+
+# runtime_lines <dir>... — human-readable list; with several dirs each line
+# also names the project it belongs to (the menu's process pane)
+runtime_lines() {
+  local many=0 port pid cpu rss cmd dir mb
+  [ $# -gt 1 ] && many=1
+  runtime_procs "$@" | while IFS="$TAB" read -r port pid cpu rss cmd dir; do
+    [ "$many" = 1 ] && cmd="$(printf '%-34s' "${cmd:0:34}") ${dir/#$HOME/~}"
+    mb=$(( (${rss:-0} + 512) / 1024 ))
+    [ "$many" = 0 ] && [ ${#cmd} -gt 60 ] && cmd="${cmd:0:59}…"
+    if [ "$port" != - ]; then
+      printf '  %-7s PID %-6s %5s%% CPU %5s MB  %s  → http://localhost:%s\n' \
+        ":${port%%,*}" "$pid" "$cpu" "$mb" "$cmd" "${port%%,*}"
+    else
+      printf '  %-7s PID %-6s %5s%% CPU %5s MB  %s\n' "-" "$pid" "$cpu" "$mb" "$cmd"
+    fi
+  done
+}
+
+# ---------------------------------------------------------------------------
 # dispatch (internal subcommands invoked by fzf run in fresh processes;
 # they read language/filter from the exported env)
 # ---------------------------------------------------------------------------
@@ -656,7 +837,28 @@ if [ -z "$DATA" ]; then
   exit 0
 fi
 
-HEADER="$(t header)"$'\n'"$(t header2)"
+# Process pane: what is still running under any listed session's directory.
+DIRS=()
+while IFS= read -r d; do DIRS+=("$d"); done <<EOF
+$(printf '%s\n' "$DATA" | awk -F"$TAB" '$8 != "expired" && $3 != "" {print $3}' | sort -u)
+EOF
+PANE_MAX=8
+PANE="$(t pane_title)"
+if [ ${#DIRS[@]} -gt 0 ]; then PROCS="$(runtime_lines "${DIRS[@]}")"; else PROCS=""; fi
+if [ -n "$PROCS" ]; then
+  PANE="$PANE"$'\n'"$(printf '%s\n' "$PROCS" | sed -n "1,${PANE_MAX}p")"
+  N="$(printf '%s\n' "$PROCS" | wc -l | tr -d ' ')"
+  [ "$N" -gt "$PANE_MAX" ] && PANE="$PANE"$'\n'"$(t pane_more "$((N - PANE_MAX))")"
+  # mark sessions that have something running, then rebuild the rows
+  CCR_BUSY="$(runtime_procs "${DIRS[@]}" | cut -d"$TAB" -f6 | sort -u)"
+  export CCR_BUSY
+  DATA="$(scan "$FILTER" "$SORT" "$EXPIRED")"
+else
+  PANE="$PANE"$'\n'"$(t pane_none)"
+fi
+PANE="$PANE"$'\n\033[38;5;240m'"$(printf '─%.0s' $(seq 1 72))"$'\033[0m'
+
+HEADER="$PANE"$'\n'"$(t header)"$'\n'"$(t header2)"
 read -r KEEP_DAYS KEEP_SET <<EOF
 $(retention_days)
 EOF
@@ -675,6 +877,7 @@ RESULT="$(
     --border \
     --prompt="[$SORT] ❯ " \
     --header="$HEADER" \
+    --header-first \
     --expect=ctrl-r,ctrl-f,ctrl-y \
     --bind 'ctrl-t:reload("$CCR_SELF" __list time)+change-prompt([time] ❯ )' \
     --bind 'ctrl-o:reload("$CCR_SELF" __list title)+change-prompt([title] ❯ )' \

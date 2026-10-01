@@ -45,6 +45,7 @@ Enter resume  ^R +remote  ^F fork  ^Y print cmd  │  sort ^T time ^O title ^G d
 - **Quick resume** — `ccr --last` / `ccr -n N` resume straight away without opening the menu.
 - **Claude Desktop sessions** — Cowork sessions from the Desktop app show up in magenta (`Desktop · <folder>`). They open in the CLI as a fork (`--fork-session`), so the original stays untouched in Desktop.
 - **Expired sessions** — Claude deletes transcripts idle for `cleanupPeriodDays` (default 30). `Ctrl-X` / `ccr --expired` lists the ones still in your prompt history, greyed out, with their first prompt. They can't be resumed.
+- **Process pane** — a pane above the session list shows what is still running under any session's directory, busiest first: listening ports an agent left up as demos (with a `http://localhost:<port>` link) and dev watchers like `tsc --watch`, with CPU, memory and project. Sessions with something running get a `⚙` mark, and resuming one prints its processes first. Needs `lsof`; shells, `claude` itself and the MCP servers it starts are left out.
 - **Retention warning** — the header warns when `cleanupPeriodDays` is unset or under 90 days.
 - **Fork** — `Ctrl-F` (or `ccr --fork`) resumes into a new session id with `--fork-session`, leaving the original untouched.
 - **Mobile handoff** — `Ctrl-R` resumes with `--remote-control` so you can continue on the Claude mobile app / web.
@@ -60,6 +61,7 @@ Enter resume  ^R +remote  ^F fork  ^Y print cmd  │  sort ^T time ^O title ^G d
 - [`fzf`](https://github.com/junegunn/fzf)
 - `python3`
 - the `claude` CLI (to actually resume)
+- `lsof` (optional, macOS default; for the background-process list)
 
 ## Install
 
@@ -171,6 +173,7 @@ hundreds of sessions.
 | 快速 resume | `ccr --last` / `ccr -n N` 不開選單直接續 |
 | Desktop 對話 | Claude Desktop 的 Cowork 對話以洋紅色顯示（`Desktop · <資料夾>`），以 `--fork-session` 在 CLI 開啟，Desktop 原對話不受影響 |
 | 已清理的 session | Claude 會刪除超過 `cleanupPeriodDays`（預設 30 天）沒活動的對話；`Ctrl-X`／`ccr --expired` 以灰色列出仍留在 prompt 歷史裡的 session 和第一句 prompt，但無法 resume |
+| Process 區 | 列表上方獨立一區，依 CPU 排序列出所有 session 目錄底下還在跑的 process：agent 開來 demo 的 port（附 `http://localhost:<port>`）和 `tsc --watch` 這類 watcher，含 CPU、記憶體與所屬專案；有 process 的 session 標 `⚙`，resume 前也會印出；需要 `lsof`，shell、`claude` 本身與它啟動的 MCP server 不列 |
 | 保留天數提醒 | `cleanupPeriodDays` 沒設定或小於 90 天時，選單標頭會提醒 |
 | 分支續接 | `Ctrl-F`（或 `ccr --fork`）以 `--fork-session` 開新 session id，原對話不受影響 |
 | 手機接手 | `Ctrl-R` 加 `--remote-control`，用 Claude 手機 app／網頁繼續 |
@@ -182,7 +185,7 @@ hundreds of sessions.
 
 ### 需求
 
-`bash`（3.2+）、[`fzf`](https://github.com/junegunn/fzf)、`python3`、`claude` CLI。
+`bash`（3.2+）、[`fzf`](https://github.com/junegunn/fzf)、`python3`、`claude` CLI；`lsof`（選用，macOS 內建，用來列出背景 process）。
 
 ### 安裝
 
