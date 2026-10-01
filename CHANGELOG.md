@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-01
+
 ### Added
 - `ccc` (Claude Code + Codex): `bin/ccc` is a symlink to `ccr`; run under that name it also lists OpenAI Codex sessions from `~/.codex/state_*.sqlite` (read-only, columns looked up by name, falling back to the rollout files). `Enter` runs `codex resume`, `Ctrl-F` runs `codex fork`, a leading `claude` / `codex` column lets you filter by typing `^claude` / `^codex`, `Ctrl-A` cycles all / Claude / Codex, and `--last` considers both tools. Subagent, review, MCP and archived threads are skipped; `CODEX_HOME` is honoured. `install.sh` links both commands.
 
@@ -51,7 +53,8 @@ Initial release.
 - Scan-path resolution: `CCR_PROJECTS_DIR` → `$CLAUDE_CONFIG_DIR/projects` → `~/.claude/projects`.
 - Installer (`install.sh`, with optional `--tip` shell hint), SVG banner + logo, and a bilingual README.
 
-[Unreleased]: https://github.com/kylinfish/claude-code-resume/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/kylinfish/claude-code-resume/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/kylinfish/claude-code-resume/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/kylinfish/claude-code-resume/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/kylinfish/claude-code-resume/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kylinfish/claude-code-resume/releases/tag/v0.1.0
