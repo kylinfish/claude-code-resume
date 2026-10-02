@@ -896,6 +896,11 @@ def short_cmd(c, t):
     words = c.split()
     if not words:
         return c
+    # `node ./node_modules/.bin/vite --port 5173` -> `vite --port 5173`: the
+    # tool is the interesting part, and the pane only has room for ~34 chars
+    if (len(words) > 1 and os.path.basename(words[0]) in ("node", "bun", "deno")
+            and "node_modules/.bin/" in words[1]):
+        words = words[1:]
     rest = " ".join(words[1:]).replace(t + "/", "./").replace(home + "/", "~/")
     return (os.path.basename(words[0]) + " " + rest).strip()
 
