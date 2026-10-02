@@ -6,7 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `demo/setup.sh` / `demo/teardown.sh`: a fake, self-contained set of Claude Code, Codex, Desktop and expired sessions plus a few real dev servers, for recording demos without showing real sessions (see `demo/README.md`).
+
 ### Changed
+- The process pane shows `node ./node_modules/.bin/vite --port 5173` as `vite --port 5173` (also for `bun` / `deno`), so the tool and its arguments fit in the column.
 - README split into `README.md` (English) and `README.zh-TW.md` (繁體中文) with a language switch; features grouped into sections.
 - The banner shows both `ccr` and `ccc` (+ Codex) and the current UI.
 
