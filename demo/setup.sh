@@ -64,6 +64,25 @@ claude = [
     ("storefront", 18*D, "優化首頁載入速度", None,
      "首頁 LCP 超過 4 秒，幫我找原因", "把 hero 圖改成 AVIF 並加上 preload"),
 ]
+def touch(base, rel, text):
+    path = os.path.join(base, rel)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(text)
+
+# outputs, keyed by the index in `claude` above: what ✦, the preview's
+# Artifacts / files written sections and ^L show
+OUT_ARTS = {  # (title, local file, number of publishes)
+    0: [("API 認證流程圖", "docs/auth-flow.html", 3)],
+    6: [("Onboarding guide", "onboarding.html", 1)],
+}
+OUT_FILES = {  # (tool, file, exists) — exists=False shows up as ✗
+    0: [("Write", "src/middleware/auth.ts", True), ("Edit", "src/routes/gateway.ts", True),
+        ("Write", "tests/auth.test.ts", True)],
+    2: [("Edit", "src/webhooks/handler.ts", True), ("Write", "src/webhooks/dedupe.ts", True)],
+    6: [("Write", "onboarding.md", True), ("Edit", "old-checklist.md", False)],
+}
+
 cfg = os.path.join(demo, "claude")
 for i, (p, age, title, custom, first, last) in enumerate(claude):
     s = sid(i + 1)
@@ -83,6 +102,19 @@ for i, (p, age, title, custom, first, last) in enumerate(claude):
     ]
     if custom:
         lines.append({"type": "custom-title", "customTitle": custom, "sessionId": s})
+    # artifacts (one frame-link per publish) and files written (Write / Edit)
+    for a_title, a_rel, a_publishes in OUT_ARTS.get(i, []):
+        touch(cwd, a_rel, f"<h1>{a_title}</h1>")
+        for v in range(a_publishes):
+            lines.append({"type": "frame-link", "sessionId": s, "title": a_title,
+                          "path": os.path.join(cwd, a_rel), "artifactCount": 1,
+                          "frameUrl": f"https://claude.ai/code/artifact/{uuid.UUID(int=0xa17 << 100 | i << 8 | len(a_rel))}",
+                          "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now - age - (a_publishes - v) * M))})
+    for tool, rel, keep in OUT_FILES.get(i, []):
+        if keep:
+            touch(cwd, rel, "// demo\n")
+        lines.append({"type": "assistant", "sessionId": s, "message": {"role": "assistant", "content": [
+            {"type": "tool_use", "name": tool, "input": {"file_path": os.path.join(cwd, rel)}}]}})
     with open(f, "w", encoding="utf-8") as fh:
         fh.write("\n".join(json.dumps(l, ensure_ascii=False) for l in lines) + "\n")
     os.utime(f, (now - age, now - age))
@@ -151,10 +183,27 @@ db.execute("""create table threads (id text primary key, rollout_path text, crea
   updated_at integer, updated_at_ms integer, source text, cwd text, title text, preview text,
   first_user_message text, name text, git_branch text, model text, tokens_used integer,
   archived integer default 0)""")
+# files each thread created / changed, written as FileChange items in its rollout
+CODEX_FILES = {
+    0: {"src/limiter.ts": "add", "src/app.ts": "update", "tests/limiter.test.ts": "add"},
+    1: {"src/billing/stripe.ts": "update", "src/billing/webhooks.ts": "update"},
+}
 for n, (p, age, name, branch, model, tokens, source) in enumerate(codex):
     upd = int(now - age)
+    tid = str(uuid.UUID(int=0x019e0000000070000000000000000000 + n))
+    rollout = ""
+    if n in CODEX_FILES:
+        for rel in CODEX_FILES[n]:
+            touch(proj(p), rel, "// demo\n")
+        rollout = os.path.join(demo, "codex", "sessions", f"rollout-demo-{tid}.jsonl")
+        os.makedirs(os.path.dirname(rollout), exist_ok=True)
+        with open(rollout, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps({"type": "session_meta", "payload": {"id": tid, "cwd": proj(p), "source": source}}) + "\n")
+            changes = {os.path.join(proj(p), rel): {"type": k} for rel, k in CODEX_FILES[n].items()}
+            fh.write(json.dumps({"type": "event_msg", "payload": {"type": "item_completed",
+                     "item": {"type": "FileChange", "changes": str(changes), "status": "completed"}}}) + "\n")
     db.execute("insert into threads values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)",
-               (str(uuid.UUID(int=0x019e0000000070000000000000000000 + n)), "", upd - H, upd, upd * 1000,
+               (tid, rollout, upd - H, upd, upd * 1000,
                 source, proj(p), name, name, name, name, branch, model, tokens))
 db.commit(); db.close()
 print(f"demo: {len(claude)} Claude, {len(codex) - 1} Codex, {len(cowork)} Desktop, {len(expired)} expired sessions")

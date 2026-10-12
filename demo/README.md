@@ -23,6 +23,7 @@ CCR_DESKTOP_DIR CCR_CACHE`) to get your real sessions back.
 | Codex threads | 4 | branch, model and token count in the preview; one hidden subagent thread |
 | Claude Desktop (Cowork) | 2 | magenta `Desktop · <folder>` rows |
 | Expired sessions | 3 | only in the prompt history; shown with `Ctrl-X` |
+| Artifacts & files | 2 artifacts, 12 files | on 3 Claude sessions and 2 Codex threads (`✦`); one file is missing on purpose so a `✗` shows |
 | Demo processes | 5 | `vite :5173`, `next dev :3000`, `python -m http.server :8000`, `tsc --watch`, and a `webpack --watch` that uses ~60% of a core so the CPU shows in red |
 
 `cleanupPeriodDays` is left unset on purpose, so the retention warning appears in
@@ -39,7 +40,9 @@ are taken.
 4. `Ctrl-T` / `Ctrl-O` / `Ctrl-G` — sort by time, title, directory.
 5. `Esc`, then `ccc` — the `claude` / `codex` column.
 6. Type `^codex` — only Codex threads; clear it, `Ctrl-A` to cycle sources.
-7. Pick `Add JWT auth to the API gateway` and press `Enter` — the processes still
+7. Highlight `Add JWT auth to the API gateway` — the preview lists its artifact and
+   files written; press `Ctrl-L` to pick one to open.
+8. Run `ccc` again, pick the same session and press `Enter` — the processes still
    running in that project are printed, then the (stub) resume command.
 
 ---
@@ -52,5 +55,5 @@ are taken.
 
 1. `demo/setup.sh`：建立資料並啟動 demo process，約 2 秒。
 2. `source ~/ccr-demo/env.sh`：讓 `ccr`／`ccc` 與假的 `claude`／`codex` 指向 demo 資料。
-3. 執行 `ccc` 開始錄影，可照上方「Suggested recording」的 7 個步驟操作。
+3. 執行 `ccc` 開始錄影，可照上方「Suggested recording」的 8 個步驟操作。
 4. `demo/teardown.sh`：關掉 demo process 並刪除 `~/ccr-demo`；之後開新的終端機，就會回到你真正的 session。
