@@ -26,21 +26,27 @@
 </p>
 
 ```
-⚙ 背後正在跑的 process（所有 session 專案，依 CPU 排序）
-  :5173   PID 4242    12.5% CPU   200 MB  vite                        ~/code/acme-api  → http://localhost:5173
-  -       PID 6060     1.0% CPU    80 MB  tsc --watch                 ~/code/acme-api
-────────────────────────────────────────────────────────────────────────
-Enter 開啟  ^R +手機遠端  ^F 分支  ^Y 只印指令  │  排序 ^T 時間 ^O 標題 ^G 目錄  │  Esc 取消
-^X 顯示／隱藏已清理的 session  │  ^L 開啟 artifact／檔案（✦）  │  Desktop 對話以 fork 開啟
-[time] ❯
-     剛剛 │ ⚙✦ Add JWT auth to the API gateway         │ ~/code/acme-api
- 2 分鐘前 │    修 checkout 不穩定的整合測試            │ ~/code/storefront
-   1 天前 │    教團隊用 Claude Desktop                 │ Desktop · ~/code/handbook
-  11 天前 │    建立 CI release pipeline                │ ~/code/infra
+╭─ ⚙ 背景 process · 2 ───────────────────────────────────────────────────────────────────────╮
+│  -       PID 4242    59.1% CPU    45 MB  webpack --watch            ~/code/payments       │
+│  :5173   PID 6060     0.0% CPU    38 MB  vite --port 5173           ~/code/acme-api  → http://localhost:5173 │
+╰──────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ 🔍 搜尋 · time ───────────────────────────────────────────────────────────────────────────╮
+│ ❯ jwt                                                                             3/14 │
+╰──────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Session 列表 ───────────────────────────────────────────────────────────────────────────╮
+│▌     剛剛 │ ⚙✦ Add JWT auth to the API gateway         │ ~/code/acme-api                 │
+│ 2 分鐘前 │    修 checkout 不穩定的整合測試            │ ~/code/storefront                 │
+╰──────────────────────────────────────────────────────────────────────────────────────────╯
+ Enter 開啟  ^R 遠端  ^F 分支  ^Y 只印  ^L 開啟產出  ^X 已清理  ^T/^O/^G 排序
+╭─ 預覽 ───────────────────────────────────────────────────────────────────────────────────╮
+│ 📌 Add JWT auth to the API gateway                                                       │
+╰──────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-> **0.5 新功能**：標 `✦` 的 session 會列出它產生的 artifact 與檔案，`Ctrl-L` 可直接開啟。
-> 0.4 加入 `ccc`（Codex），0.3 加入 process 區，0.2 加入 Desktop／已清理的 session 與分支續接。
+> **0.6 新功能**：預設改用 Tokyo Night 主題，另外還有四種主題可選（`--theme`／
+> `CCR_THEME`），以及 fzf ≥ 0.58 的分框版面。0.5 加入 artifact 與產生的檔案
+> （`✦`、`Ctrl-L`），0.4 加入 `ccc`（Codex），0.3 加入 process 區，0.2 加入
+> Desktop／已清理的 session 與分支續接。
 > 詳見 [版本紀錄](#版本紀錄)。
 
 ## 功能
@@ -50,6 +56,7 @@ Enter 開啟  ^R +手機遠端  ^F 分支  ^Y 只印指令  │  排序 ^T 時�
 - [Process 區](#process-區)：session 留在背景的 process
 - [產出](#產出)：每個 session 產生的 artifact 與檔案
 - [Codex（`ccc`）](#codexccc)：Claude Code 與 Codex 放在同一個列表
+- [主題](#主題)：配色與分框版面
 - [日常使用](#日常使用)：排序、顏色、語言、速度
 
 ### Session
@@ -100,6 +107,14 @@ Enter 開啟  ^R +手機遠端  ^F 分支  ^Y 只印指令  │  排序 ^T 時�
 
 完整說明見下方 [`ccc`：Claude Code + Codex](#cccclaude-code--codex)。
 
+### 主題
+
+| 功能 | 說明 |
+| ---- | ---- |
+| 五種主題 | `tokyonight`（預設）、`catppuccin`、`kanagawa`、`gruvbox`、`classic`（0.6 以前的配色）。用 `ccr --theme gruvbox` 或 `CCR_THEME=catppuccin ccr` 切換（兩者都設定時 `--theme` 優先） |
+| Truecolor，可退回 256 色 | `$COLORTERM` 是 `truecolor`／`24bit` 時以 24-bit 全彩顯示，否則自動換成最接近的 xterm-256 色 |
+| 分框版面 | process、搜尋、session 列表、預覽各自獨立成一個圓角框。需要 fzf ≥ 0.58（沒有的話 `brew upgrade fzf`）；版本較舊時自動退回單一邊框的 `classic` 版面，也可用 `CCR_LAYOUT=boxed`／`CCR_LAYOUT=classic` 強制指定 |
+
 ### 日常使用
 
 | 功能 | 說明 |
@@ -143,6 +158,7 @@ cd claude-code-resume
 | `ccr --expired` | 一併列出已被 Claude 清理的 session |
 | `ccr -s title` | 依標題排序（`time`｜`title`｜`dir`） |
 | `ccr --lang zh` | 強制中文介面（預設依 `$LANG` 自動偵測） |
+| `ccr --theme gruvbox` | 切換主題（`tokyonight`（預設）｜`catppuccin`｜`kanagawa`｜`gruvbox`｜`classic`） |
 | `ccr --version` | 顯示版本 |
 | `ccr --help` | 顯示說明 |
 
@@ -201,6 +217,8 @@ claude │     1 天前 │    教團隊用 Claude Desktop                 │ D
 | `CCR_CACHE` | 覆寫索引快取目錄（預設 `~/.cache/ccr`） |
 | `CCR_DESKTOP_DIR` | 覆寫 Claude Desktop Cowork 對話的路徑 |
 | `CCR_HISTORY_FILE` | 覆寫 prompt 歷史檔（預設 `~/.claude/history.jsonl`） |
+| `CCR_THEME` | 主題：`tokyonight`（預設）、`catppuccin`、`kanagawa`、`gruvbox`、`classic` |
+| `CCR_LAYOUT` | `boxed` 或 `classic`（預設：fzf ≥ 0.58 用 `boxed`，否則 `classic`） |
 | `CODEX_HOME` | `ccc`：Codex 的目錄（預設 `~/.codex`） |
 | `CCR_CODEX` | 設為 `1` 時，以 `ccr` 執行也會列出 Codex session |
 
@@ -224,6 +242,7 @@ claude │     1 天前 │    教團隊用 Claude Desktop                 │ D
 
 | 版本 | 重點 |
 | ---- | ---- |
+| [0.6.0](docs/releases/v0.6.0.md) | 預設改用 Tokyo Night 主題，另外還有四種主題（`--theme`／`CCR_THEME`），fzf ≥ 0.58 的分框版面，舊版 fzf 自動退回有主題的 `classic` 版面 |
 | [0.5.0](docs/releases/v0.5.0.md) | 每個 session 的 artifact 與產生的檔案（`✦`、`Ctrl-L`）、process 區顯示改進、README 分語系、demo 資料、測試 |
 | [0.4.0](docs/releases/v0.4.0.md) | `ccc`：Claude Code 與 Codex 的 session 放在同一個選單，含 `claude`／`codex` 工具欄與 `Ctrl-A` 來源切換 |
 | [0.3.0](docs/releases/v0.3.0.md) | Process 區：列出 session 專案底下仍在跑的 port 與 watcher，高亮顯示並以 `⚙` 標記 session |

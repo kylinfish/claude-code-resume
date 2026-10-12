@@ -86,7 +86,14 @@ Other themes (same role order as the table above):
 same. It is not byte-for-byte identical: 0.5.0 uses a few near-duplicate codes for
 the same meaning (the missing-directory warning is `1;31` while `✗` is `91`; the
 process-pane title is `1;97` while session titles are `38;5;253`). Each of those
-pairs now shares one role, so it renders with that role's code:
+pairs now shares one role, so it renders with that role's code. One more
+divergence worth noting: row, process-pane and preview *content* keep the exact
+0.5.0 colours, but chrome text — the key-hint lines, the process-pane title, and
+warnings — now goes through the `dim` / `fg` / `warn` roles like every other
+theme. Since `classic`'s palette values carry the role's code verbatim (no style
+added on top), the key hints render in `dim` grey instead of 0.5.0's ANSI-dim
+style, and the process-pane title is no longer bold (`fg`'s `38;5;253`, not the
+old `1;97`).
 
 | Role | classic | Role | classic |
 | ---- | ------- | ---- | ------- |
@@ -131,7 +138,15 @@ One palette, three consumers:
 ## Layout
 
 Detection: parse the first `X.Y` of `fzf --version`; `boxed` when ≥ 0.58 unless
-`CCR_LAYOUT` says otherwise.
+`CCR_LAYOUT` says otherwise. `--footer` (the key-hints line) needs fzf ≥ 0.63 —
+below that, the hints are the last line of the Processes box instead; `--gutter`
+needs ≥ 0.66.
+
+Labels are localized; English / Chinese:
+` ⚙ Processes · N ` / ` ⚙ 背景 process · N ` (` ⚙ Processes ` / ` ⚙ 背景 process `
+when there are none), ` 🔍 Search · <sort> ` / ` 🔍 搜尋 · <sort> ` (`ccc` appends
+the source, e.g. ` · time · all `), ` Sessions ` / ` Session 列表 `, ` Preview ` /
+` 預覽 `, and the `Ctrl-L` picker ` Open · <title> ` / ` 開啟 · <title> `.
 
 ### Boxed (fzf ≥ 0.58)
 
@@ -141,13 +156,16 @@ Top to bottom, all full width, rounded borders, labels left-aligned (`pos=2`):
 | ----- | ---------- | ----- | ------- |
 | Processes | header (`--header-first`, `--header-border`) | ` ⚙ Processes · N ` (` ⚙ Processes ` when none) | process rows, or "none detected"; the retention warning as the last line when it applies |
 | Search | input (`--input-border`) | ` 🔍 Search · <sort> ` (`ccc`: ` · <source>` appended) | prompt `❯ `, `--info=inline-right` |
-| Sessions | list (`--list-border`) | ` Sessions · N ` | rows; `--highlight-line`; pointer `▌` on the current row only (`--gutter=' '`) |
+| Sessions | list (`--list-border`) | ` Sessions ` (no count — fzf's own `--info=inline-right` already shows one) | rows; `--highlight-line`; pointer `▌` on the current row only (`--gutter=' '`) |
 | Key hints | footer (`--footer`, no border) | — | one dim line: `Enter resume  ^R remote  ^F fork  ^Y print  ^L open  ^X expired  ^T/^O/^G sort` (+ `^A source` in `ccc`) |
 | Preview | `--preview-window=down,45%,border-rounded` | ` Preview ` | as today |
 
 The process pane no longer needs its own title line and `─` rule (the box label
 replaces them). Sort keys (`^T` / `^O` / `^G`) and `^A` update the Search label
-with `change-input-label` alongside the existing `reload`. `^X` keeps its
+via `execute-silent("$CCR_SELF" __set_sort …)+reload("$CCR_SELF" __list)
++transform-input-label("$CCR_SELF" __label)` — the state is persisted by
+`__set_sort` / `__cycle_source` first, then `__list` reloads the rows and
+`__label` recomputes the label from that same state. `^X` keeps its plain
 `reload`. The `Ctrl-L` picker uses the same palette and border style
 (`--list-border`, label ` Open · <session title> `, height 40%).
 

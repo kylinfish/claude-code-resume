@@ -28,29 +28,27 @@ Control**. Use **`ccc`** to get **Claude Code + Codex** in one list.
 </p>
 
 ```
-⚙ processes running under your session projects (by CPU)
-  :5173   PID 4242    12.5% CPU   200 MB  vite                        ~/code/acme-api  → http://localhost:5173
-  -       PID 6060     1.0% CPU    80 MB  tsc --watch                 ~/code/acme-api
-────────────────────────────────────────────────────────────────────────
-Enter resume  ^R +remote  ^F fork  ^Y print cmd  │  sort ^T time ^O title ^G dir  │  Esc quit
-^X show/hide expired sessions  │  ^L open artifact / file (✦)  │  Desktop sessions open as a fork
-[time] ❯
- just now │ ⚙✦ Add JWT auth to the API gateway         │ ~/code/acme-api
-   2m ago │    Fix flaky checkout integration test     │ ~/code/storefront
-   1d ago │    Teach the team Claude Desktop features  │ Desktop · ~/code/handbook
-  11d ago │    Set up the CI release pipeline          │ ~/code/infra
-┌──────────────────────────────────────────────────────────┐
-│ 📌 Add JWT auth to the API gateway                       │
-│ 🕒 2026-06-20 14:08  (just now)                          │
-│ 📁 /Users/you/code/acme-api                              │
-│ 🔑 0a1b2c3d-4e5f-6789-abcd-ef0123456789                  │
-│ 💬 last prompt: extract the token check into middleware  │
-└──────────────────────────────────────────────────────────┘
+╭─ ⚙ Processes · 2 ───────────────────────────────────────────────────────────────────────╮
+│  -       PID 4242    59.1% CPU    45 MB  webpack --watch            ~/code/payments       │
+│  :5173   PID 6060     0.0% CPU    38 MB  vite --port 5173           ~/code/acme-api  → http://localhost:5173 │
+╰──────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ 🔍 Search · time ───────────────────────────────────────────────────────────────────────╮
+│ ❯ jwt                                                                             3/14 │
+╰──────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Sessions ───────────────────────────────────────────────────────────────────────────────╮
+│▌ just now │ ⚙✦ Add JWT auth to the API gateway         │ ~/code/acme-api                  │
+│    2m ago │    Fix flaky checkout integration test     │ ~/code/storefront                │
+╰──────────────────────────────────────────────────────────────────────────────────────────╯
+ Enter resume  ^R remote  ^F fork  ^Y print  ^L open  ^X expired  ^T/^O/^G sort
+╭─ Preview ────────────────────────────────────────────────────────────────────────────────╮
+│ 📌 Add JWT auth to the API gateway                                                       │
+╰──────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-> **What's new in 0.5** — sessions marked `✦` list the artifacts and files they
-> produced, and `Ctrl-L` opens one. 0.4 added `ccc` (Codex), 0.3 the process
-> pane, 0.2 Desktop / expired sessions and fork.
+> **What's new in 0.6** — Tokyo Night theme by default, four more palettes
+> (`--theme` / `CCR_THEME`), and a stacked, boxed fzf layout (fzf ≥ 0.58). 0.5
+> added artifacts and files written (`✦`, `Ctrl-L`), 0.4 `ccc` (Codex), 0.3 the
+> process pane, 0.2 Desktop / expired sessions and fork.
 > See [Releases](#releases).
 
 ## Features
@@ -60,6 +58,7 @@ Enter resume  ^R +remote  ^F fork  ^Y print cmd  │  sort ^T time ^O title ^G d
 - [Process pane](#process-pane) — what your sessions left running
 - [Artifacts & files](#artifacts--files) — what each session produced
 - [Codex (`ccc`)](#codex-ccc) — Claude Code and Codex in one list
+- [Themes](#themes) — color palettes and the boxed layout
 - [Everyday](#everyday) — sorting, colors, language, speed
 
 ### Sessions
@@ -96,6 +95,20 @@ Enter resume  ^R +remote  ^F fork  ^Y print cmd  │  sort ^T time ^O title ^G d
 ### Codex (`ccc`)
 
 - **One list for both tools** — Claude Code and Codex sessions side by side, with a leading `claude` / `codex` column you can filter on (`^codex`, `^claude`) and `Ctrl-A` to cycle all / Claude / Codex. See [`ccc`](#ccc--claude-code--codex).
+
+### Themes
+
+- **Five themes** — `tokyonight` (default), `catppuccin`, `kanagawa`, `gruvbox`,
+  and `classic` (the pre-0.6 look). Pick one with `ccr --theme gruvbox` or
+  `CCR_THEME=catppuccin ccr` (`--theme` wins if both are set).
+- **Truecolor, with a 256-color fallback** — themes render in full 24-bit color
+  when `$COLORTERM` is `truecolor` / `24bit`, and fall back to the nearest
+  xterm-256 color otherwise.
+- **Boxed layout** — each part of the picker (processes, search, sessions,
+  preview) sits in its own titled, rounded-border box. It needs fzf ≥ 0.58 —
+  `brew upgrade fzf` if you're on an older version; older fzf gets a single-border
+  `classic` layout instead. Force it either way with `CCR_LAYOUT=boxed` /
+  `CCR_LAYOUT=classic`.
 
 ### Everyday
 
@@ -137,6 +150,7 @@ ccr --last --fork        # fork the most recent session into a new session id
 ccr --expired            # also list sessions Claude has already cleaned up
 ccr -s title             # sort by title  (time | title | dir)
 ccr --lang zh            # force Chinese UI (default: auto-detect from $LANG)
+ccr --theme gruvbox      # tokyonight (default) | catppuccin | kanagawa | gruvbox | classic
 ccr --version            # print the version
 ccr --help
 ```
@@ -196,6 +210,8 @@ claude │   1d ago │    Teach the team Claude Desktop features  │ Desktop �
 | `CCR_CACHE`         | override the index cache dir (default `~/.cache/ccr`)            |
 | `CCR_DESKTOP_DIR`   | override the Claude Desktop Cowork sessions dir                  |
 | `CCR_HISTORY_FILE`  | override the prompt history file (default `~/.claude/history.jsonl`) |
+| `CCR_THEME`         | theme: `tokyonight` (default), `catppuccin`, `kanagawa`, `gruvbox`, `classic` |
+| `CCR_LAYOUT`        | `boxed` or `classic` (default: `boxed` on fzf ≥ 0.58, else `classic`) |
 | `CODEX_HOME`        | `ccc`: Codex's home dir (default `~/.codex`)                     |
 | `CCR_CODEX`         | `1` turns on Codex sessions when running as `ccr`                |
 
@@ -249,6 +265,7 @@ hundreds of sessions.
 
 | Version | Highlights |
 | ------- | ---------- |
+| [0.6.0](docs/releases/v0.6.0.md) | Tokyo Night theme by default, four more palettes (`--theme` / `CCR_THEME`), boxed fzf layout on fzf ≥ 0.58 with a themed `classic` fallback |
 | [0.5.0](docs/releases/v0.5.0.md) | Artifacts and files written per session (`✦`, `Ctrl-L`), tidier process pane, split READMEs, demo data, tests |
 | [0.4.0](docs/releases/v0.4.0.md) | `ccc`: Claude Code + Codex sessions in one picker, with a `claude` / `codex` column and `Ctrl-A` source cycling |
 | [0.3.0](docs/releases/v0.3.0.md) | Process pane: ports and watchers still running under your session projects, highlighted, with `⚙` marks |

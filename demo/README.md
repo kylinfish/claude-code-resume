@@ -15,6 +15,9 @@ demo/teardown.sh              # stop the processes, delete ~/ccr-demo
 Open a new terminal after `teardown.sh` (or `unset CLAUDE_CONFIG_DIR CODEX_HOME
 CCR_DESKTOP_DIR CCR_CACHE`) to get your real sessions back.
 
+Use `CCR_THEME=catppuccin ccc` (or `--theme`) to record another theme; the
+boxed layout needs fzf ≥ 0.58.
+
 ## What's in it
 
 | Kind | Count | Notes |
@@ -57,3 +60,5 @@ are taken.
 2. `source ~/ccr-demo/env.sh`：讓 `ccr`／`ccc` 與假的 `claude`／`codex` 指向 demo 資料。
 3. 執行 `ccc` 開始錄影，可照上方「Suggested recording」的 8 個步驟操作。
 4. `demo/teardown.sh`：關掉 demo process 並刪除 `~/ccr-demo`；之後開新的終端機，就會回到你真正的 session。
+
+用 `CCR_THEME=catppuccin ccc`（或 `--theme`）可以錄另一種主題；分框版面需要 fzf ≥ 0.58。
