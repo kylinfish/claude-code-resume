@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `tests/run.sh`: integration tests (57 checks) that run `ccr` / `ccc` under `/bin/bash` against a throwaway fixture with stub `claude`, `codex`, `fzf`, `ps`, `lsof` and `open`.
 - Artifacts and files written per session: the preview lists claude.ai artifacts (title, versions, last update, link, local file `✓`/`✗`) and files the session created (`+`) or changed (`~`), from Claude Code's `frame-link` records and `Write` / `Edit` calls and Codex's `FileChange` items. Sessions with any get a `✦` mark, and `Ctrl-L` opens one (browser for artifacts, default app for files; a picker when there are several). Files in temp / scratchpad dirs are skipped; everything is cached with the index.
 - `demo/setup.sh` / `demo/teardown.sh`: a fake, self-contained set of Claude Code, Codex, Desktop and expired sessions plus a few real dev servers, for recording demos without showing real sessions (see `demo/README.md`).
 
