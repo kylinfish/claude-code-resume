@@ -271,5 +271,44 @@ fresh; COLORTERM=truecolor CCR_THEME=tokyonight run ctrl-y aaaa-live "$CCR" >/de
 has  "pane uses theme"       "$(awk '/PID 102/' "$F/args")" $'\033[1;38;2;247;118;142m 75.0% CPU'
 has  "pane port bold yellow" "$(awk '/PID 102/' "$F/args")" $'\033[1;38;2;224;175;104m:5173'
 
+# ---------------------------------------------------------------------------
+# layout
+# ---------------------------------------------------------------------------
+args_for() { FAKE_FZF_VERSION="$1" run ctrl-y aaaa-live "${@:2}" >/dev/null 2>&1; cat "$F/args"; }
+A="$(args_for 0.74.4 "$CCR")"
+has   "boxed on 0.74"        "$A" "--style=full"
+has   "boxed header label"   "$A" "--header-label= ⚙ 背景 process · 3 "
+has   "boxed input label"    "$A" "--input-label= 🔍 搜尋 · time "
+has   "boxed list label"     "$A" "--list-label= Session 列表 "
+has   "boxed footer"         "$A" "--footer="
+has   "boxed gutter"         "$A" "--gutter= "
+has   "boxed label refresh"  "$A" "transform-input-label"
+hasnt "boxed: no pane title" "$A" "背後正在跑的 process"
+A="$(args_for 0.60.0 "$CCR")"
+has   "0.60 boxed"           "$A" "--style=full"
+hasnt "0.60 no footer"       "$A" "--footer"
+hasnt "0.60 no gutter"       "$A" "--gutter"
+has   "0.60 hints in header" "$A" "Enter 開啟"
+A="$(args_for 0.57.0 "$CCR")"
+has   "classic on 0.57"      "$A" "--border-label= ccr "
+hasnt "classic no style"     "$A" "--style"
+has   "ccc border label"     "$(args_for 0.57.0 "$CCC")" "--border-label= ccc "
+has   "CCR_LAYOUT=classic"   "$(CCR_LAYOUT=classic args_for 0.74.4 "$CCR")" "--border-label"
+has   "boxed on old fzf warns" "$(CCR_LAYOUT=boxed FAKE_FZF_VERSION=0.57.0 run ctrl-y aaaa-live "$CCR" 2>&1)" "需要 fzf 0.58"
+has   "odd fzf version"      "$(args_for weird "$CCR")" "--border-label"
+has   "bad CCR_LAYOUT warns" "$(CCR_LAYOUT=bogus FAKE_FZF_VERSION=0.74.4 run ctrl-y aaaa-live "$CCR" 2>&1)" "CCR_LAYOUT 只接受 boxed|classic"
+FAKE_FZF_VERSION=0.74.4 FAKE_PICK2="1111-demo" run ctrl-l aaaa-live "$CCR" >/dev/null 2>&1
+has   "boxed picker label"   "$(cat "$F/args")" "--list-label= 開啟 · live-session "
+A="$(CCR_THEME=classic args_for 0.74.4 "$CCR")"
+has   "classic theme boxed"  "$A" "--style=full"
+hasnt "classic no colors"    "$A" "--color="
+A="$(CCR_THEME=tokyonight COLORTERM=truecolor args_for 0.74.4 "$CCC")"
+has   "boxed colors"         "$A" "header-border:#ff9e64"
+has   "ccc source in label"  "$A" "--input-label= 🔍 搜尋 · time · all "
+S="$(mktemp)"; printf 'sort=title\nsource=codex\n' > "$S"
+has   "__label"              "$(CCR_STATE="$S" CCR_CODEX=1 "$SH" "$CCC" __label)" " 🔍 搜尋 · title · codex "
+CCR_STATE="$S" "$SH" "$CCR" __set_sort dir
+has   "__set_sort"           "$(cat "$S")" "sort=dir"; rm -f "$S"
+
 echo "pass=$pass fail=$fail"
 [ "$fail" = 0 ]

@@ -158,6 +158,26 @@ t() {
     en:file_gone)    fmt='ccr: file no longer exists: %s' ;;
     zh:theme_invalid) fmt='ccr：未知的主題「%s」，改用 tokyonight（可用：tokyonight catppuccin kanagawa gruvbox classic）' ;;
     en:theme_invalid) fmt='ccr: unknown theme "%s"; using tokyonight (available: tokyonight catppuccin kanagawa gruvbox classic)' ;;
+    zh:proc_label)   fmt=' ⚙ 背景 process · %s ' ;;
+    en:proc_label)   fmt=' ⚙ Processes · %s ' ;;
+    zh:proc_label0)  fmt=' ⚙ 背景 process ' ;;
+    en:proc_label0)  fmt=' ⚙ Processes ' ;;
+    zh:search_label) fmt=' 🔍 搜尋 · %s ' ;;
+    en:search_label) fmt=' 🔍 Search · %s ' ;;
+    zh:list_label)   fmt=' Session 列表 ' ;;
+    en:list_label)   fmt=' Sessions ' ;;
+    zh:preview_label) fmt=' 預覽 ' ;;
+    en:preview_label) fmt=' Preview ' ;;
+    zh:open_label)   fmt=' 開啟 · %s ' ;;
+    en:open_label)   fmt=' Open · %s ' ;;
+    zh:footer)       fmt='Enter 開啟  ^R 遠端  ^F 分支  ^Y 只印  ^L 開啟產出  ^X 已清理  ^T/^O/^G 排序' ;;
+    en:footer)       fmt='Enter resume  ^R remote  ^F fork  ^Y print  ^L open  ^X expired  ^T/^O/^G sort' ;;
+    zh:footer_ccc)   fmt='  ^A 來源' ;;
+    en:footer_ccc)   fmt='  ^A source' ;;
+    zh:layout_invalid) fmt='ccr：CCR_LAYOUT 只接受 boxed|classic，改為自動偵測' ;;
+    en:layout_invalid) fmt='ccr: CCR_LAYOUT accepts boxed|classic; detecting instead' ;;
+    zh:layout_old_fzf) fmt='ccr：分框版面需要 fzf 0.58 以上（目前 %s），改用 classic；可執行 brew upgrade fzf' ;;
+    en:layout_old_fzf) fmt='ccr: the boxed layout needs fzf 0.58+ (found %s); using classic. Try: brew upgrade fzf' ;;
     *)               fmt="$k" ;;
   esac
   # messages say whichever name we were run as (ccr / ccc)
@@ -381,6 +401,32 @@ pal() {
     !*) printf '\033[%sm' "${v#!}" ;;
     *)  if [ -n "${2:-}" ]; then printf '\033[%s;%sm' "$2" "$v"; else printf '\033[%sm' "$v"; fi ;;
   esac
+}
+
+# ver_ge <version> <major.minor> -> success when version >= major.minor
+ver_ge() {
+  awk -v h="$1" -v w="$2" 'BEGIN { if (h !~ /^[0-9]+\.[0-9]+/) exit 1
+    split(h, a, "."); split(w, b, ".")
+    exit !((a[1] + 0 > b[1] + 0) || (a[1] + 0 == b[1] + 0 && a[2] + 0 >= b[2] + 0)) }'
+}
+
+# choose_layout -> sets LAYOUT, FZF_HAS_FOOTER, FZF_HAS_GUTTER from fzf --version
+choose_layout() {
+  local v want="${CCR_LAYOUT:-}"
+  v="$(fzf --version 2>/dev/null | awk '{ print $1; exit }')"
+  FZF_HAS_FOOTER=0; FZF_HAS_GUTTER=0
+  ver_ge "$v" 0.63 && FZF_HAS_FOOTER=1
+  ver_ge "$v" 0.66 && FZF_HAS_GUTTER=1
+  case "$want" in
+    ''|boxed|classic) ;;
+    *) echo "$(t layout_invalid)" >&2; want='' ;;
+  esac
+  if ver_ge "$v" 0.58; then
+    LAYOUT="${want:-boxed}"
+  else
+    [ "$want" = boxed ] && echo "$(t layout_old_fzf "${v:-?}")" >&2
+    LAYOUT=classic
+  fi
 }
 
 # resume_session <sid|transcript> <cwd> [remote:0|1] [fork:0|1] — cd into the project and resume.
@@ -1271,6 +1317,14 @@ case "${1:-}" in
   __toggle_expired)
     if [ "$(state_get expired 0)" = 1 ]; then state_set expired 0; else state_set expired 1; fi
     exit 0 ;;
+  __set_sort) state_set sort "${2:-time}"; exit 0 ;;
+  __label)    # the boxed layout's Search label: sort (+ source in ccc)
+    if [ "${CCR_CODEX:-0}" = 1 ]; then
+      t search_label "$(state_get sort time) · $(state_get source all)"
+    else
+      t search_label "$(state_get sort time)"
+    fi
+    exit 0 ;;
   -h|--help) print_help; exit 0 ;;
   -V|--version) printf '%s %s\n' "$(basename "$0")" "$VERSION"; exit 0 ;;
 esac
@@ -1395,6 +1449,45 @@ HEADER="$HEADER"$'\n'"$(pal sep)$(printf '─%.0s' $(seq 1 72))"$'\033[0m\n'"$HI
 SOURCE_BIND=()
 [ "$CODEX_MODE" = 1 ] && SOURCE_BIND=(--bind 'ctrl-a:execute-silent("$CCR_SELF" __cycle_source)+reload("$CCR_SELF" __list)')
 
+choose_layout
+COLOR_ARGS=()
+[ -n "$FZF_COLORS" ] && COLOR_ARGS=(--color="$FZF_COLORS")
+LAYOUT_ARGS=()
+if [ "$LAYOUT" = boxed ]; then
+  [ -n "$FZF_COLORS_BOXED" ] && COLOR_ARGS+=(--color="$FZF_COLORS_BOXED")
+  BOX_HEADER="$PANE_ROWS"
+  [ -n "$RETENTION" ] && BOX_HEADER="$BOX_HEADER"$'\n'"$RETENTION"
+  FOOTER="$(t footer)"; [ "$CODEX_MODE" = 1 ] && FOOTER="$FOOTER$(t footer_ccc)"
+  if [ "$FZF_HAS_FOOTER" = 1 ]; then
+    LAYOUT_ARGS+=(--footer="$FOOTER")
+    [ -n "$FZF_COLOR_FOOTER" ] && COLOR_ARGS+=(--color="$FZF_COLOR_FOOTER")
+  else
+    BOX_HEADER="$BOX_HEADER"$'\n'"$(pal dim)$FOOTER"$'\033[0m'
+  fi
+  [ "$FZF_HAS_GUTTER" = 1 ] && LAYOUT_ARGS+=(--gutter=' ')
+  if [ "$PANE_COUNT" -gt 0 ]; then PLABEL="$(t proc_label "$PANE_COUNT")"; else PLABEL="$(t proc_label0)"; fi
+  if [ "$CODEX_MODE" = 1 ]; then SLABEL="$(t search_label "$SORT · all")"; else SLABEL="$(t search_label "$SORT")"; fi
+  LAYOUT_ARGS+=(--style=full --header-first --header="$BOX_HEADER"
+    --header-border=rounded --input-border=rounded --list-border=rounded
+    --header-label="$PLABEL" --header-label-pos=2
+    --input-label="$SLABEL" --input-label-pos=2
+    --list-label="$(t list_label)" --list-label-pos=2
+    --preview-label="$(t preview_label)" --preview-label-pos=2
+    --prompt='❯ ' --pointer='▌' --highlight-line --info=inline-right
+    --preview-window='down,45%,wrap,border-rounded'
+    --bind 'ctrl-t:execute-silent("$CCR_SELF" __set_sort time)+reload("$CCR_SELF" __list)+transform-input-label("$CCR_SELF" __label)'
+    --bind 'ctrl-o:execute-silent("$CCR_SELF" __set_sort title)+reload("$CCR_SELF" __list)+transform-input-label("$CCR_SELF" __label)'
+    --bind 'ctrl-g:execute-silent("$CCR_SELF" __set_sort dir)+reload("$CCR_SELF" __list)+transform-input-label("$CCR_SELF" __label)')
+  [ "$CODEX_MODE" = 1 ] && SOURCE_BIND=(--bind 'ctrl-a:execute-silent("$CCR_SELF" __cycle_source)+reload("$CCR_SELF" __list)+transform-input-label("$CCR_SELF" __label)')
+else
+  LAYOUT_ARGS+=(--border=rounded --border-label=" $PROG " --border-label-pos=3
+    --header-first --header="$HEADER" --prompt="[$SORT] ❯ "
+    --preview-label="$(t preview_label)" --preview-window='down,45%,wrap,border-top'
+    --bind 'ctrl-t:reload("$CCR_SELF" __list time)+change-prompt([time] ❯ )'
+    --bind 'ctrl-o:reload("$CCR_SELF" __list title)+change-prompt([title] ❯ )'
+    --bind 'ctrl-g:reload("$CCR_SELF" __list dir)+change-prompt([dir] ❯ )')
+fi
+
 # Show only column 1 (DISPLAY); preview/sort use the hidden columns.
 RESULT="$(
   printf '%s\n' "$DATA" | fzf \
@@ -1403,18 +1496,12 @@ RESULT="$(
     --with-nth=1 \
     --no-hscroll \
     --reverse \
-    --border \
-    --prompt="[$SORT] ❯ " \
-    --header="$HEADER" \
-    --header-first \
+    "${LAYOUT_ARGS[@]}" \
+    ${COLOR_ARGS[@]+"${COLOR_ARGS[@]}"} \
     --expect=ctrl-r,ctrl-f,ctrl-y,ctrl-l \
-    --bind 'ctrl-t:reload("$CCR_SELF" __list time)+change-prompt([time] ❯ )' \
-    --bind 'ctrl-o:reload("$CCR_SELF" __list title)+change-prompt([title] ❯ )' \
-    --bind 'ctrl-g:reload("$CCR_SELF" __list dir)+change-prompt([dir] ❯ )' \
     --bind 'ctrl-x:execute-silent("$CCR_SELF" __toggle_expired)+reload("$CCR_SELF" __list)' \
     ${SOURCE_BIND[@]+"${SOURCE_BIND[@]}"} \
-    --preview="\"\$CCR_SELF\" __preview {6} {4} {5} {3} {7} {2} {8} {9} {10}" \
-    --preview-window='down,45%,wrap,border-top'
+    --preview="\"\$CCR_SELF\" __preview {6} {4} {5} {3} {7} {2} {8} {9} {10}"
 )" || { echo "$(t cancelled)"; exit 0; }
 
 # --expect output: line 1 = key (empty for Enter), line 2 = selected row
@@ -1434,8 +1521,16 @@ if [ "$KEY" = ctrl-l ]; then
   ITEMS="$(outputs_for "$SID" pick)"
   [ -n "$ITEMS" ] || { echo "$(t no_outputs)" >&2; exit 1; }
   if [ "$(printf '%s\n' "$ITEMS" | wc -l | tr -d ' ')" -gt 1 ]; then
-    ITEMS="$(printf '%s\n' "$ITEMS" | fzf --delimiter="$TAB" --with-nth=2 --reverse \
-      --height=40% --border --prompt="$(t pick_output)" --header="$TITLE_PICK")" || { echo "$(t cancelled)"; exit 0; }
+    PICK_ARGS=(--delimiter="$TAB" --with-nth=2 --reverse --height=40% --prompt="$(t pick_output)")
+    if [ "$LAYOUT" = boxed ]; then
+      PICK_ARGS+=(--list-border=rounded --list-label="$(t open_label "$TITLE_PICK")" --list-label-pos=2
+        --input-border=rounded --pointer='▌' --highlight-line)
+      [ -n "$FZF_COLORS_BOXED" ] && PICK_ARGS+=(--color="$FZF_COLORS_BOXED")
+    else
+      PICK_ARGS+=(--border=rounded --header="$TITLE_PICK")
+    fi
+    [ -n "$FZF_COLORS" ] && PICK_ARGS+=(--color="$FZF_COLORS")
+    ITEMS="$(printf '%s\n' "$ITEMS" | fzf "${PICK_ARGS[@]}")" || { echo "$(t cancelled)"; exit 0; }
   fi
   TARGET_OPEN="$(printf '%s' "$ITEMS" | cut -d"$TAB" -f1)"
   case "$TARGET_OPEN" in
