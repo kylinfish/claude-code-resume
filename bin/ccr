@@ -180,6 +180,12 @@ t() {
     en:layout_invalid) fmt='ccr: CCR_LAYOUT accepts boxed|classic; detecting instead' ;;
     zh:layout_old_fzf) fmt='ccr：分框版面需要 fzf 0.58 以上（目前 %s），改用 classic；可執行 brew upgrade fzf' ;;
     en:layout_old_fzf) fmt='ccr: the boxed layout needs fzf 0.58+ (found %s); using classic. Try: brew upgrade fzf' ;;
+    zh:box_session)  fmt='📌 對話' ;;
+    en:box_session)  fmt='📌 Session' ;;
+    zh:box_arts)     fmt='🎨 Artifacts · %s' ;;
+    en:box_arts)     fmt='🎨 Artifacts · %s' ;;
+    zh:box_files)    fmt='📄 產生的檔案 · %s' ;;
+    en:box_files)    fmt='📄 Files · %s' ;;
     *)               fmt="$k" ;;
   esac
   # messages say whichever name we were run as (ccr / ccc)
@@ -542,6 +548,192 @@ if files:
 PY
 }
 
+# ---------------------------------------------------------------------------
+# preview_boxed <preview args…> — the boxed layout's preview: one rounded,
+# titled block per kind of content (session / artifacts / files / prompt),
+# drawn inside fzf's Preview pane. Two columns when the pane is ≥ 100 wide
+# (session + prompt left, artifacts + files right), otherwise stacked.
+# Widths count CJK / emoji as two columns, so borders line up.
+# ---------------------------------------------------------------------------
+preview_boxed() {
+  local missing=0
+  [ -n "${4:-}" ] && [ ! -d "${4:-}" ] && missing=1
+  python3 - "$PROJECTS_DIR" "$missing" "$@" \
+    "$(t box_session)" "$(t box_arts '%d')" "$(t box_files '%d')" "$(t pv_last)" "$(t pv_first)" \
+    "$(t pv_versions '%d')" "$(t pv_version1 '%d')" "$(t pane_more '%d')" \
+    "$(t pv_expired)" "$(t pv_codex)" "$(t pv_desktop)" "$(t pv_folders)" "$(t pv_missing)" <<'PY'
+import sys, os, json, hashlib, unicodedata
+a = sys.argv[1:]
+projects_dir, missing = a[0], a[1] == "1"
+title, when, rel, cwd, last, sid, kind, target, extra = (a[2:11] + [""] * 9)[:9]
+(L_SESSION, L_ARTS, L_FILES, L_LAST, L_FIRST, L_VER, L_VER1, L_MORE,
+ L_EXPIRED, L_CODEX, L_DESKTOP, L_FOLDERS, L_MISSING) = a[11:24]
+W = max(30, int(os.environ.get("FZF_PREVIEW_COLUMNS") or 80))
+
+PAL = dict(kv.split("=", 1) for kv in os.environ.get("CCR_PALETTE", "").split("|") if "=" in kv)
+def C(role, style=""):
+    v = PAL.get(role)
+    if not v:
+        return ""
+    if v.startswith("!"):
+        return "\x1b[" + v[1:] + "m"
+    return "\x1b[" + (style + ";" if style else "") + v + "m"
+R = "\x1b[0m"
+
+def cw(ch):
+    if unicodedata.combining(ch):
+        return 0
+    return 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
+def dw(s):
+    return sum(cw(ch) for ch in s)
+def cut(s, width):
+    """s truncated to `width` columns, with … when it doesn't fit"""
+    if dw(s) <= width:
+        return s
+    out, w = "", 0
+    for ch in s:
+        if w + cw(ch) > width - 1:
+            break
+        out += ch
+        w += cw(ch)
+    return out + "…"
+def wrap(s, width, max_lines=6):
+    """greedy wrap by display width; words wider than a line (e.g. CJK
+    sentences without spaces) are split; overflow ends with …"""
+    lines, cur = [], ""
+    for word in s.split():
+        while dw(word) > width:
+            if cur:
+                lines.append(cur); cur = ""
+            head, w = "", 0
+            for ch in word:
+                if w + cw(ch) > width:
+                    break
+                head += ch; w += cw(ch)
+            lines.append(head)
+            word = word[len(head):]
+        if not word:
+            continue
+        if cur and dw(cur) + 1 + dw(word) > width:
+            lines.append(cur); cur = word
+        else:
+            cur = f"{cur} {word}" if cur else word
+    if cur:
+        lines.append(cur)
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+        lines[-1] = lines[-1] + "…" if dw(lines[-1]) < width else cut(lines[-1], width)
+    return lines
+
+# A line is a list of (text, colour) segments; a block is (title, colour, lines).
+def render(block, width):
+    name, colour, lines = block
+    inner = width - 4
+    bc = C(colour)
+    label = cut(name, max(1, width - 5))
+    out = [f"{bc}╭ {R}{C(colour, '1')}{label}{R}{bc} {'─' * max(0, width - 4 - dw(label))}╮{R}"]
+    for segs in lines:
+        text, room = "", inner
+        for s, c in segs:
+            s = cut(s, room) if dw(s) > room else s
+            text += f"{c}{s}{R}" if c else s
+            room -= dw(s)
+            if room <= 0:
+                break
+        out.append(f"{bc}│{R} {text}{' ' * max(0, room)} {bc}│{R}")
+    out.append(f"{bc}╰{'─' * (width - 2)}╯{R}")
+    return out
+
+home = os.path.expanduser("~")
+def tilde(p):
+    return "~" + p[len(home):] if p.startswith(home + "/") else p
+
+# --- session block ---
+dim, key = C("dim"), C("key")
+sess = [[(title or "(untitled)", C("fg", "1"))],
+        [("🕒 ", key), (when, ""), (f"  ({rel})" if rel else "", dim)]]
+if kind == "expired":
+    sess.append([(L_EXPIRED, C("bad", "1"))])
+if kind == "codex":
+    sess.append([(L_CODEX, C("codex"))])
+    if extra:
+        sess.append([("🌿 ", key), (extra, "")])
+if kind == "desktop":
+    sess.append([(L_DESKTOP, C("desktop"))])
+    if extra:
+        sess.append([(L_FOLDERS + " ", key), (extra, "")])
+if missing and kind != "expired":
+    sess.append([("📁 ", key), (tilde(cwd) + "  " + L_MISSING, C("bad", "1"))])
+else:
+    sess.append([("📁 ", key), (tilde(cwd), "")])
+sess.append([("🔑 ", key), (sid, dim)])
+
+# --- outputs (same source as outputs_for) ---
+cache_home = os.environ.get("CCR_CACHE") or os.path.join(
+    os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "ccr")
+try:
+    with open(os.path.join(cache_home, "outputs-" + hashlib.md5(projects_dir.encode("utf-8")).hexdigest()[:8] + ".json"),
+              encoding="utf-8") as fh:
+        o = json.load(fh).get(sid) or {}
+except Exception:
+    o = {}
+arts, files, ocwd = o.get("arts") or [], o.get("files") or [], (o.get("cwd") or "").rstrip("/")
+def short(p):
+    if ocwd and p.startswith(ocwd + "/"):
+        return "./" + p[len(ocwd) + 1:]
+    return tilde(p)
+def mark(p):
+    return ("✓", C("ok")) if os.path.exists(p) else ("✗", C("bad"))
+
+art_lines = []
+for x in arts[:5]:
+    n = x.get("n", 1)
+    meta = " · ".join(b for b in ((L_VER1 if n == 1 else L_VER) % n, (x.get("last") or "")[:10]) if b)
+    art_lines.append([(x.get("title") or "(untitled)", C("fg", "1")), ("  " + meta, dim)])
+    art_lines.append([(x["url"], C("url", "4"))])
+    if x.get("path"):
+        art_lines.append([(short(x["path"]) + " ", dim), mark(x["path"])])
+if len(arts) > 5:
+    art_lines.append([(L_MORE.strip() % (len(arts) - 5), dim)])
+kind_col = {"+": C("ok"), "~": C("key"), "-": C("bad")}
+file_lines = [[(x["kind"] + " ", kind_col.get(x["kind"], "")), (short(x["path"]) + " ", ""), mark(x["path"])]
+              for x in files[:8]]
+if len(files) > 8:
+    file_lines.append([(L_MORE.strip() % (len(files) - 8), dim)])
+
+prompt_name, prompt = (L_FIRST, extra) if kind == "expired" else (L_LAST, last)
+
+def blocks_for(width):
+    left = [(L_SESSION, "accent", sess)]
+    if prompt:
+        left.append((prompt_name, "key", [[(l, "")] for l in wrap(prompt, width - 4)]))
+    right = []
+    if art_lines:
+        right.append((L_ARTS % len(arts), "out", art_lines))
+    if file_lines:
+        right.append((L_FILES % len(files), "ok", file_lines))
+    return left, right
+
+rows = []
+if W >= 100:
+    lw = (W - 1) // 2
+    rw = W - 1 - lw
+    left, _ = blocks_for(lw)
+    _, right = blocks_for(rw)
+    if right:
+        lcol = [l for b in left for l in render(b, lw)]
+        rcol = [l for b in right for l in render(b, rw)]
+        for i in range(max(len(lcol), len(rcol))):
+            rows.append((lcol[i] if i < len(lcol) else " " * lw) + " " + (rcol[i] if i < len(rcol) else ""))
+    else:
+        rows = [l for b in blocks_for(W)[0] for l in render(b, W)]
+else:
+    left, right = blocks_for(W)
+    rows = [l for b in left[:1] + right + left[1:] for l in render(b, W)]
+print("\n".join(rows))
+PY
+}
+
 # open_target <url|path> — browser for URLs, the default app for files
 open_target() {
   local opener=open
@@ -558,6 +750,8 @@ open_target() {
 do_preview() {
   local title="${1:-}" when="${2:-}" rel="${3:-}" cwd="${4:-}" last="${5:-}" sid="${6:-}"
   local kind="${7:-cli}" target="${8:-}" extra="${9:-}"
+  # the boxed layout draws content blocks inside the Preview pane
+  if [ "${CCR_LAYOUT_ACTIVE:-}" = boxed ]; then preview_boxed "$@"; return 0; fi
   local C_RESET=$'\033[0m' C_TITLE C_DIM C_WARN C_KEY C_DESK C_CODEX
   C_TITLE="$(pal accent 1)"; C_DIM="$(pal dim)"; C_WARN="$(pal bad 1)"
   C_KEY="$(pal key)"; C_DESK="$(pal desktop)"; C_CODEX="$(pal codex)"
@@ -1453,6 +1647,7 @@ SOURCE_BIND=()
 [ "$CODEX_MODE" = 1 ] && SOURCE_BIND=(--bind 'ctrl-a:execute-silent("$CCR_SELF" __cycle_source)+reload("$CCR_SELF" __list)')
 
 choose_layout
+export CCR_LAYOUT_ACTIVE="$LAYOUT"   # fzf's preview subprocess draws per layout
 COLOR_ARGS=()
 [ -n "$FZF_COLORS" ] && COLOR_ARGS=(--color="$FZF_COLORS")
 LAYOUT_ARGS=()
@@ -1479,7 +1674,7 @@ if [ "$LAYOUT" = boxed ]; then
     --list-label="$(t list_label)" --list-label-pos=2
     --preview-label="$(t preview_label)" --preview-label-pos=2
     --prompt='❯ ' --pointer='▌' --highlight-line --info=inline-right
-    --preview-window='down,45%,wrap,border-rounded'
+    --preview-window='down,45%,border-rounded'
     --bind 'ctrl-t:execute-silent("$CCR_SELF" __set_sort time)+reload("$CCR_SELF" __list)+transform-input-label("$CCR_SELF" __label)'
     --bind 'ctrl-o:execute-silent("$CCR_SELF" __set_sort title)+reload("$CCR_SELF" __list)+transform-input-label("$CCR_SELF" __label)'
     --bind 'ctrl-g:execute-silent("$CCR_SELF" __set_sort dir)+reload("$CCR_SELF" __list)+transform-input-label("$CCR_SELF" __label)')

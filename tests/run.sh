@@ -322,5 +322,34 @@ has   "__label"              "$(CCR_STATE="$S" CCR_CODEX=1 "$SH" "$CCC" __label)
 CCR_STATE="$S" "$SH" "$CCR" __set_sort dir
 has   "__set_sort"           "$(cat "$S")" "sort=dir"; rm -f "$S"
 
+# ---------------------------------------------------------------------------
+# boxed preview: content blocks drawn inside the preview pane
+# ---------------------------------------------------------------------------
+# widest visible line (ANSI stripped, CJK / emoji = 2 columns)
+maxw() { strip | python3 -c 'import sys, unicodedata
+print(max((sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in l.rstrip("\n")) for l in sys.stdin), default=0))'; }
+bpv() { CCR_LAYOUT_ACTIVE=boxed FZF_PREVIEW_COLUMNS="$1" "$SH" "$CCR" __preview "${@:2}"; }
+"$SH" "$CCR" __list time >/dev/null
+PV="$(bpv 120 live-session "2026-10-10 11:00" "2 天前" "$P" "hello live" aaaa-live cli "" "" | strip)"
+has   "boxed pv: session box"   "$PV" "╭ 📌 對話 "
+has   "boxed pv: two columns"   "$(printf '%s\n' "$PV" | grep '╭ 📌 對話')" "╭ 🎨 Artifacts · 1 "
+has   "boxed pv: files box"     "$PV" "╭ 📄 產生的檔案 · 2 "
+has   "boxed pv: prompt box"    "$PV" "╭ 💬 最後的 prompt "
+has   "boxed pv: file row"      "$PV" "+ ./notes.md ✓"
+same  "boxed pv: fits 120"      "$(bpv 120 live-session w r "$P" "hello live" aaaa-live cli "" "" | maxw)" "120"
+PV="$(bpv 70 live-session w r "$P" "hello live" aaaa-live cli "" "" | strip)"
+hasnt "boxed pv narrow: stacked" "$(printf '%s\n' "$PV" | grep '╭ 📌 對話')" "Artifacts"
+same  "boxed pv: fits 70"       "$(bpv 70 live-session w r "$P" "hello live" aaaa-live cli "" "" | maxw)" "70"
+LONG="$(printf 'word %.0s' $(seq 1 30))"   # 30 x "word" in a 46-column box -> 9+9+9+3 words
+same  "boxed pv: long prompt wraps" "$(bpv 50 t w r "$P" "$LONG" aaaa-live cli "" "" | strip | grep -c 'word word')" "4"
+same  "boxed pv: fits 50"       "$(bpv 50 t w r "$P" "$LONG" aaaa-live cli "" "" | maxw)" "50"
+PV="$(bpv 100 "修 checkout 的 bug" w r "$P" "" bbbb-gone expired "" "修 checkout 的 bug" | strip)"
+has   "boxed pv: expired first prompt" "$PV" "╭ 💬 第一句 prompt "
+has   "boxed pv: expired warning"      "$PV" "對話紀錄已被清理"
+same  "boxed pv: CJK fits"      "$(bpv 100 "修 checkout 的 bug" w r "$P" "" bbbb-gone expired "" "修 checkout 的 bug" | maxw)" "100"
+hasnt "classic pv unchanged"    "$("$SH" "$CCR" __preview t w r "$P" "" aaaa-live cli "" "" | strip)" "╭"
+A="$(args_for 0.74.4 "$CCR")"
+hasnt "boxed preview no wrap"   "$(grep '^--preview-window=' "$F/args")" "wrap"
+
 echo "pass=$pass fail=$fail"
 [ "$fail" = 0 ]
