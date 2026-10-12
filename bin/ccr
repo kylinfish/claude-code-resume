@@ -27,6 +27,7 @@
 #   Ctrl-F  fork: resume into a new session id (--fork-session)
 #   Ctrl-Y  print the command only (don't run)
 #   Ctrl-X  show/hide cleaned-up (expired) sessions
+#   Ctrl-L  open one of the session's artifacts / files written
 #   Ctrl-T  sort by time     Ctrl-O sort by title     Ctrl-G sort by dir
 #   Esc     quit
 #
@@ -106,8 +107,8 @@ t() {
     en:pv_last)      fmt='💬 last prompt' ;;
     zh:header)       fmt=$'Enter 開啟  ^R +手機遠端  ^F 分支  ^Y 只印指令  │  排序 ^T 時間 ^O 標題 ^G 目錄  │  Esc 取消' ;;
     en:header)       fmt=$'Enter resume  ^R +remote  ^F fork  ^Y print cmd  │  sort ^T time ^O title ^G dir  │  Esc quit' ;;
-    zh:header2)      fmt=$'^X 顯示／隱藏已清理的 session  │  Desktop 對話以 fork 在 CLI 開啟' ;;
-    en:header2)      fmt=$'^X show/hide expired sessions  │  Desktop sessions open as a fork' ;;
+    zh:header2)      fmt=$'^X 顯示／隱藏已清理的 session  │  ^L 開啟 artifact／檔案（✦）  │  Desktop 對話以 fork 開啟' ;;
+    en:header2)      fmt=$'^X show/hide expired sessions  │  ^L open artifact / file (✦)  │  Desktop sessions open as a fork' ;;
     zh:retention)    fmt='⚠ Claude 會自動刪除 %s 天沒有活動的對話；在 %s 加上 "cleanupPeriodDays": 365 可保留更久' ;;
     en:retention)    fmt='⚠ Claude deletes sessions idle for %s days; add "cleanupPeriodDays": 365 to %s to keep them longer' ;;
     zh:expired_cant) fmt='ccr：這個 session 的對話紀錄已被 Claude 清理，無法 resume' ;;
@@ -138,6 +139,22 @@ t() {
     en:codex_no_rc)  fmt='ccr: Codex has no Remote Control; use Enter (resume) or ^F (fork) instead' ;;
     zh:pv_codex)     fmt='🤖 Codex session · Enter = codex resume · ^F = codex fork' ;;
     en:pv_codex)     fmt='🤖 Codex session · Enter = codex resume · ^F = codex fork' ;;
+    zh:pv_arts)      fmt='🎨 Artifacts（%s）' ;;
+    en:pv_arts)      fmt='🎨 Artifacts (%s)' ;;
+    zh:pv_files)     fmt='📄 產生的檔案（%s）' ;;
+    en:pv_files)     fmt='📄 files written (%s)' ;;
+    zh:pv_versions)  fmt='%s 版' ;;
+    en:pv_versions)  fmt='%s versions' ;;
+    zh:pv_version1)  fmt='%s 版' ;;
+    en:pv_version1)  fmt='%s version' ;;
+    zh:no_outputs)   fmt='ccr：這個 session 沒有 artifact 或產生的檔案' ;;
+    en:no_outputs)   fmt='ccr: this session has no artifacts or files written' ;;
+    zh:pick_output)  fmt='開啟 ❯ ' ;;
+    en:pick_output)  fmt='open ❯ ' ;;
+    zh:opening)      fmt='→ 開啟 %s' ;;
+    en:opening)      fmt='→ opening %s' ;;
+    zh:file_gone)    fmt='ccr：檔案已不存在：%s' ;;
+    en:file_gone)    fmt='ccr: file no longer exists: %s' ;;
     *)               fmt="$k" ;;
   esac
   # messages say whichever name we were run as (ccr / ccc)
@@ -206,6 +223,7 @@ ccr — Claude Code Resume
   Ctrl-F  分支：以新的 session id 續接 (--fork-session)
   Ctrl-Y  只印出指令，不執行
   Ctrl-X  顯示／隱藏已清理的 session
+  Ctrl-L  開啟 session 的 artifact 或產生的檔案（標 ✦ 的 session）
   Ctrl-T  依時間排序   Ctrl-O 依標題   Ctrl-G 依目錄
   Esc     取消
 
@@ -247,6 +265,7 @@ In-menu keys:
   Ctrl-F  fork: resume into a new session id (--fork-session)
   Ctrl-Y  print the command only (don't run)
   Ctrl-X  show/hide cleaned-up (expired) sessions
+  Ctrl-L  open one of the session's artifacts / files written (✦ rows)
   Ctrl-T  sort by time   Ctrl-O sort by title   Ctrl-G sort by dir
   Esc     quit
 
@@ -306,6 +325,77 @@ resume_codex() {
 }
 
 # ---------------------------------------------------------------------------
+# outputs_for <sid> <preview|pick> — a session's artifacts and files written,
+# from the outputs-*.json the last scan wrote next to the index cache.
+#   preview: colored lines for the preview pane (nothing if there are none)
+#   pick:    TSV rows  url|path \t label  for ^L
+# ---------------------------------------------------------------------------
+outputs_for() {
+  python3 - "$PROJECTS_DIR" "$1" "${2:-preview}" \
+    "$(t pv_arts '%d')" "$(t pv_files '%d')" "$(t pv_versions '%d')" "$(t pane_more '%d')" \
+    "$(t pv_version1 '%d')" <<'PY'
+import sys, os, json, hashlib
+projects_dir, sid, mode, L_ARTS, L_FILES, L_VER, L_MORE, L_VER1 = sys.argv[1:9]
+cache_home = os.environ.get("CCR_CACHE") or os.path.join(
+    os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "ccr")
+f = os.path.join(cache_home, "outputs-" + hashlib.md5(projects_dir.encode("utf-8")).hexdigest()[:8] + ".json")
+try:
+    with open(f, encoding="utf-8") as fh:
+        o = json.load(fh).get(sid) or {}
+except Exception:
+    o = {}
+arts, files, cwd = o.get("arts") or [], o.get("files") or [], (o.get("cwd") or "").rstrip("/")
+home = os.path.expanduser("~")
+def short(p):
+    if cwd and p.startswith(cwd + "/"):
+        return "./" + p[len(cwd) + 1:]
+    return "~" + p[len(home):] if p.startswith(home + "/") else p
+
+if mode == "pick":
+    for a in arts:
+        print(f"{a['url']}\t🎨 {a.get('title') or a['url']}  ({a['url']})")
+        if a.get("path") and os.path.exists(a["path"]):
+            print(f"{a['path']}\t   {short(a['path'])}")
+    for x in files:
+        if os.path.exists(x["path"]):
+            print(f"{x['path']}\t{x['kind']} {short(x['path'])}")
+    sys.exit(0)
+
+E = "\x1b["; R = E + "0m"
+KEY, TTL, URL, OK, GONE, DIM = E + "33m", E + "1;97m", E + "4;92m", E + "92m", E + "91m", E + "2m"
+KIND = {"+": E + "92m+", "~": E + "93m~", "-": E + "91m-"}
+def mark(p):
+    return f"{OK}✓{R}" if os.path.exists(p) else f"{GONE}✗{R}"
+if arts:
+    print(f"\n{KEY}{L_ARTS % len(arts)}{R}")
+    for a in arts[:5]:
+        when = (a.get("last") or "")[:10]
+        n = a.get("n", 1)
+        meta = " · ".join(b for b in ((L_VER1 if n == 1 else L_VER) % n, when) if b)
+        print(f"  {TTL}{a.get('title') or '(untitled)'}{R}  {DIM}{meta}{R}")
+        print(f"    {URL}{a['url']}{R}")
+        if a.get("path"):
+            print(f"    {DIM}{short(a['path'])}{R} {mark(a['path'])}")
+    if len(arts) > 5:
+        print(L_MORE % (len(arts) - 5))
+if files:
+    print(f"\n{KEY}{L_FILES % len(files)}{R}")
+    for x in files[:8]:
+        print(f"  {KIND.get(x['kind'], x['kind'])}{R} {short(x['path'])} {mark(x['path'])}")
+    if len(files) > 8:
+        print(L_MORE % (len(files) - 8))
+PY
+}
+
+# open_target <url|path> — browser for URLs, the default app for files
+open_target() {
+  local opener=open
+  command -v open >/dev/null 2>&1 || opener=xdg-open
+  echo "$(t opening "$1")"
+  "$opener" "$1"
+}
+
+# ---------------------------------------------------------------------------
 # preview subcommand: invoked by fzf with the highlighted row's fields
 #   $1 title  $2 when(human)  $3 rel  $4 cwd  $5 last_prompt  $6 sessionId
 #   $7 kind  $8 target  $9 extra   (see scan for the meaning of the last three)
@@ -337,6 +427,7 @@ do_preview() {
     printf '%s📁%s %s\n' "$C_KEY" "$C_RESET" "$cwd"
   fi
   printf '%s🔑%s %s\n' "$C_KEY" "$C_RESET" "$sid"
+  outputs_for "$sid" preview
   if [ -n "$last" ]; then
     printf '\n%s%s%s\n%s\n' "$C_KEY" "$(t pv_last)" "$C_RESET" "$last"
   fi
@@ -400,6 +491,7 @@ C_DESKTOP  = col(176)             # soft magenta (Claude Desktop rows)
 C_EXPIRED  = col(240)             # dark grey (expired rows)
 C_CODEX    = col(80)              # teal (Codex rows)
 C_CLAUDE   = col(173)             # orange (Claude tag in the ccc tool column)
+C_OUT      = col(141)             # purple (✦ session has artifacts / files written)
 
 def dwidth(s):
     return sum(2 if unicodedata.east_asian_width(c) in ("W", "F") else 1 for c in s)
@@ -460,18 +552,36 @@ def in_filter(cwd):
         return True
     return cwd == filter_dir or cwd.startswith(filter_dir.rstrip("/") + "/")
 
+# Files in temp / scratchpad dirs are gone soon after a session ends; listing
+# them as outputs would only show a column of ✗.
+TMP_PREFIXES = ("/tmp/", "/private/tmp/", "/var/folders/", "/private/var/folders/")
+def is_tmp(p):
+    return p.startswith(TMP_PREFIXES) or "/scratchpad/" in p
+
+WRITE_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
+
+def note_file(files, p, kind):
+    """files: ordered {path: kind}; the most recent change moves to the end."""
+    if not p or is_tmp(p):
+        return
+    prev = files.pop(p, None)
+    # a file created earlier in the session stays "+" after later edits
+    files[p] = "+" if prev == "+" else kind
+
 def parse_transcript(path, mtime):
-    """-> (cwd, title, last), from the cache when the file is unchanged."""
+    """-> (cwd, title, last, outs), from the cache when the file is unchanged.
+    outs = {"arts": [...artifacts...], "files": [...paths written...]}"""
     global cache_dirty
     ent = _cache.get(path)
-    if ent and ent.get("mtime") == mtime:
+    if ent and ent.get("mtime") == mtime and "outs" in ent:
         # unchanged file -> reuse cached extraction (already cleaned)
         new_cache[path] = ent
-        return ent.get("cwd", ""), ent.get("title", ""), ent.get("last", "")
+        return ent.get("cwd", ""), ent.get("title", ""), ent.get("last", ""), ent["outs"]
     cache_dirty = True
     cwd = ""
     custom_title = agent_name = ai_title = summary = None
     first_user = last_prompt = last_user = None
+    arts, files = {}, {}
     with open(path, "r", encoding="utf-8", errors="replace") as fh:
         for line in fh:
             line = line.strip()
@@ -494,6 +604,21 @@ def parse_transcript(path, mtime):
                 summary = d["summary"]
             elif ty == "last-prompt" and d.get("lastPrompt"):
                 last_prompt = d["lastPrompt"]
+            elif ty == "frame-link" and d.get("frameUrl"):
+                # one per publish of a claude.ai artifact
+                a = arts.setdefault(d["frameUrl"], {"url": d["frameUrl"], "n": 0})
+                a["n"] += 1
+                a["title"] = d.get("title") or a.get("title") or ""
+                a["path"] = d.get("path") or a.get("path") or ""
+                a["last"] = max(a.get("last") or "", d.get("timestamp") or "")
+            elif ty == "assistant":
+                content = (d.get("message") or {}).get("content")
+                for part in content if isinstance(content, list) else []:
+                    if (isinstance(part, dict) and part.get("type") == "tool_use"
+                            and part.get("name") in WRITE_TOOLS):
+                        inp = part.get("input") or {}
+                        note_file(files, inp.get("file_path") or inp.get("notebook_path"),
+                                  "+" if part.get("name") == "Write" else "~")
             elif ty == "user":
                 txt = first_text(d.get("message", {}).get("content"))
                 if txt:
@@ -506,8 +631,53 @@ def parse_transcript(path, mtime):
         cwd = os.path.dirname(path)
     title = clean(title)
     last  = clean(last)
-    new_cache[path] = {"mtime": mtime, "cwd": cwd, "title": title, "last": last}
-    return cwd, title, last
+    outs = {"arts": sorted(arts.values(), key=lambda a: a.get("last") or "", reverse=True),
+            "files": [{"path": p, "kind": k} for p, k in reversed(list(files.items()))]}
+    new_cache[path] = {"mtime": mtime, "cwd": cwd, "title": title, "last": last, "outs": outs}
+    return cwd, title, last, outs
+
+def parse_codex_outputs(path):
+    """Files a Codex thread created / changed, from its rollout's FileChange
+    items; cached by mtime like the Claude transcripts."""
+    global cache_dirty
+    if not path:
+        return {"arts": [], "files": []}
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return {"arts": [], "files": []}
+    ent = _cache.get(path)
+    if ent and ent.get("mtime") == mtime and "outs" in ent:
+        new_cache[path] = ent
+        return ent["outs"]
+    cache_dirty = True
+    import ast
+    files = {}
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                if '"FileChange"' not in line:
+                    continue
+                try:
+                    item = (json.loads(line).get("payload") or {}).get("item") or {}
+                except Exception:
+                    continue
+                if item.get("type") != "FileChange":
+                    continue
+                ch = item.get("changes")
+                if isinstance(ch, str):
+                    try:
+                        ch = ast.literal_eval(ch)
+                    except Exception:
+                        ch = {}
+                for p, info in (ch or {}).items() if isinstance(ch, dict) else []:
+                    kind = {"add": "+", "delete": "-"}.get((info or {}).get("type"), "~")
+                    note_file(files, str(p).replace("file://", ""), kind)
+    except OSError:
+        pass
+    outs = {"arts": [], "files": [{"path": p, "kind": k} for p, k in reversed(list(files.items()))]}
+    new_cache[path] = {"mtime": mtime, "outs": outs}
+    return outs
 
 def recency_color(epoch):
     d = now - epoch
@@ -518,9 +688,10 @@ busy = set(filter(None, os.environ.get("CCR_BUSY", "").split("\n")))
 
 # rows: (epoch, title, sort_dir, is_expired, tsv)
 rows = []
+outputs = {}  # sid -> {"cwd", "arts", "files"}, for the preview pane and ^L
 live_sids = set()
 
-def add_row(epoch, sid, cwd, title, last, kind, target, extra, path_label, pathc):
+def add_row(epoch, sid, cwd, title, last, kind, target, extra, path_label, pathc, outs=None):
     when = time.strftime("%Y-%m-%d %H:%M", time.localtime(epoch))
     rel  = rel_time(epoch)
     if kind == "expired":
@@ -528,7 +699,12 @@ def add_row(epoch, sid, cwd, title, last, kind, target, extra, path_label, pathc
     else:
         relc = recency_color(epoch)
         titlec = C_TITLE_LO if (title == "(untitled)" or title.startswith("<")) else C_TITLE
-    mark = "⚙ " if kind != "expired" and cwd.rstrip("/") in busy else "  "
+    # two one-column marks: ⚙ something still running, ✦ artifacts / files written
+    mark = "⚙" if kind != "expired" and cwd.rstrip("/") in busy else " "
+    has_out = bool(outs and (outs.get("arts") or outs.get("files")))
+    if has_out:
+        outputs[sid] = {"cwd": cwd, "arts": outs.get("arts") or [], "files": outs.get("files") or []}
+    omark = "✦" if has_out else " "
     # ccc: a leading tool column, so typing ^claude / ^codex filters by tool
     tool = ""
     if with_codex:
@@ -537,7 +713,7 @@ def add_row(epoch, sid, cwd, title, last, kind, target, extra, path_label, pathc
             tc = C_EXPIRED
         tool = f"{tc}{fit(tname, 6)}{R} {SEP} "
     display = (f"{tool}{relc}{fit(rel, 9, 'right')}{R} {SEP} "
-               f"{C_MID}{mark}{R}{titlec}{fit(title, 42)}{R} {SEP} {pathc}{path_label}{R}")
+               f"{C_MID}{mark}{R}{C_OUT}{omark}{R} {titlec}{fit(title, 41)}{R} {SEP} {pathc}{path_label}{R}")
     rows.append((epoch, title, path_label, kind == "expired",
                  "\t".join([display, sid, cwd, when, rel, title, last, kind, target, extra])))
 
@@ -545,13 +721,13 @@ def add_row(epoch, sid, cwd, title, last, kind, target, extra, path_label, pathc
 for path in glob.glob(os.path.join(projects_dir, "*", "*.jsonl")):
     try:
         mtime = os.path.getmtime(path)
-        cwd, title, last = parse_transcript(path, mtime)
+        cwd, title, last, outs = parse_transcript(path, mtime)
     except OSError:
         continue
     sid = os.path.splitext(os.path.basename(path))[0]
     live_sids.add(sid)
     if in_filter(cwd):
-        add_row(mtime, sid, cwd, title, last, "cli", "", "", shorten_path(cwd), C_PATH)
+        add_row(mtime, sid, cwd, title, last, "cli", "", "", shorten_path(cwd), C_PATH, outs)
 
 # --- 2. Claude Desktop (Cowork) sessions ---
 # <desktop>/<account>/<org>/local_<id>.json holds the metadata; the transcript
@@ -575,7 +751,7 @@ for meta_path in glob.glob(os.path.join(desktop_dir, "*", "*", "local_*.json")):
         continue
     try:
         mtime = os.path.getmtime(transcript)
-        tcwd, ttitle, last = parse_transcript(transcript, mtime)
+        tcwd, ttitle, last, outs = parse_transcript(transcript, mtime)
     except OSError:
         continue
     act = meta.get("lastActivityAt")
@@ -586,7 +762,7 @@ for meta_path in glob.glob(os.path.join(desktop_dir, "*", "*", "local_*.json")):
         run_dir = tcwd if os.path.isdir(tcwd) else sandbox
     label = "Desktop · " + (shorten_path(folders[0]) if folders else "Cowork")
     add_row(epoch, sid, run_dir, title, last, "desktop", transcript,
-            ", ".join(shorten_path(f) for f in folders), label, C_DESKTOP)
+            ", ".join(shorten_path(f) for f in folders), label, C_DESKTOP, outs)
 
 # --- 2b. OpenAI Codex sessions (ccc only) ---
 # Codex keeps a thread index in <codex>/state_<N>.sqlite. It is internal and
@@ -607,7 +783,8 @@ def codex_rows():
                 "id": ("id",), "cwd": ("cwd",), "updated": ("updated_at", "recency_at"),
                 "name": ("name",), "title": ("title",), "preview": ("preview", "first_user_message"),
                 "branch": ("git_branch",), "model": ("model",), "tokens": ("tokens_used",),
-                "archived": ("archived",), "source": ("source",)}.items()}
+                "archived": ("archived",), "source": ("source",),
+                "rollout": ("rollout_path",)}.items()}
             if not (sel["id"] and sel["cwd"] and sel["updated"]):
                 raise ValueError("unexpected threads schema")
             q = "select " + ", ".join(f"{v} as {k}" for k, v in sel.items() if v) + " from threads"
@@ -653,7 +830,8 @@ def codex_rows():
                         break
             out.append({"id": meta.get("id"), "cwd": meta.get("cwd") or "",
                         "updated": os.path.getmtime(path), "name": names.get(meta.get("id"), ""),
-                        "preview": preview, "branch": (meta.get("git") or {}).get("branch") or ""})
+                        "preview": preview, "branch": (meta.get("git") or {}).get("branch") or "",
+                        "rollout": path})
         except Exception:
             continue
     return out
@@ -670,7 +848,8 @@ if with_codex:
         if r.get("tokens"):
             bits.append(f"{int(r['tokens']):,} tokens")
         add_row(epoch, sid, cwd, title, clean(r.get("preview") or r.get("title")),
-                "codex", "", " · ".join(bits), shorten_path(cwd), C_CODEX)
+                "codex", "", " · ".join(bits), shorten_path(cwd), C_CODEX,
+                parse_codex_outputs(r.get("rollout") or ""))
 
 # --- 3. expired sessions: still in history.jsonl, transcript cleaned up ---
 if show_expired and os.path.isfile(history_file):
@@ -718,6 +897,17 @@ if source != "all":
 
 for r in rows:
     print(r[-1])
+
+# Outputs of the listed rows, for `__outputs` (preview pane and ^L).
+try:
+    os.makedirs(cache_home, exist_ok=True)
+    out_file = cache_file.replace("index-v2-", "outputs-")
+    _tmp = f"{out_file}.{os.getpid()}.tmp"
+    with open(_tmp, "w", encoding="utf-8") as _of:
+        json.dump(outputs, _of, ensure_ascii=False)
+    os.replace(_tmp, out_file)
+except Exception:
+    pass
 
 # Persist the cache if anything was parsed or files disappeared.
 if cache_dirty or set(new_cache) != set(_cache):
@@ -1085,7 +1275,7 @@ RESULT="$(
     --prompt="[$SORT] ❯ " \
     --header="$HEADER" \
     --header-first \
-    --expect=ctrl-r,ctrl-f,ctrl-y \
+    --expect=ctrl-r,ctrl-f,ctrl-y,ctrl-l \
     --bind 'ctrl-t:reload("$CCR_SELF" __list time)+change-prompt([time] ❯ )' \
     --bind 'ctrl-o:reload("$CCR_SELF" __list title)+change-prompt([title] ❯ )' \
     --bind 'ctrl-g:reload("$CCR_SELF" __list dir)+change-prompt([dir] ❯ )' \
@@ -1103,8 +1293,27 @@ LINE="$(printf '%s\n' "$RESULT" | sed -n '2p')"
 SID="$(printf '%s' "$LINE" | cut -d"$TAB" -f2)"
 CWD="$(printf '%s' "$LINE" | cut -d"$TAB" -f3)"
 KIND="$(printf '%s' "$LINE" | cut -d"$TAB" -f8)"
+TITLE_PICK="$(printf '%s' "$LINE" | cut -d"$TAB" -f6)"
 TARGET="$(printf '%s' "$LINE" | cut -d"$TAB" -f9)"
 EXTRA="$(printf '%s' "$LINE" | cut -d"$TAB" -f10)"
+
+# ^L: open one of the session's artifacts / files written
+if [ "$KEY" = ctrl-l ]; then
+  ITEMS="$(outputs_for "$SID" pick)"
+  [ -n "$ITEMS" ] || { echo "$(t no_outputs)" >&2; exit 1; }
+  if [ "$(printf '%s\n' "$ITEMS" | wc -l | tr -d ' ')" -gt 1 ]; then
+    ITEMS="$(printf '%s\n' "$ITEMS" | fzf --delimiter="$TAB" --with-nth=2 --reverse \
+      --height=40% --border --prompt="$(t pick_output)" --header="$TITLE_PICK")" || { echo "$(t cancelled)"; exit 0; }
+  fi
+  TARGET_OPEN="$(printf '%s' "$ITEMS" | cut -d"$TAB" -f1)"
+  case "$TARGET_OPEN" in
+    http*) ;;
+    *) [ -e "$TARGET_OPEN" ] || { echo "$(t file_gone "$TARGET_OPEN")" >&2; exit 1; } ;;
+  esac
+  [ -n "${CCR_STATE:-}" ] && rm -f "$CCR_STATE"
+  open_target "$TARGET_OPEN"
+  exit 0
+fi
 
 case "$KIND" in
   expired)  # transcript is gone: say so and show what the session was about
