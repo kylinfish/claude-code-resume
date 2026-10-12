@@ -224,6 +224,7 @@ claude │     1 天前 │    教團隊用 Claude Desktop                 │ D
 
 | 版本 | 重點 |
 | ---- | ---- |
+| [0.5.0](docs/releases/v0.5.0.md) | 每個 session 的 artifact 與產生的檔案（`✦`、`Ctrl-L`）、process 區顯示改進、README 分語系、demo 資料、測試 |
 | [0.4.0](docs/releases/v0.4.0.md) | `ccc`：Claude Code 與 Codex 的 session 放在同一個選單，含 `claude`／`codex` 工具欄與 `Ctrl-A` 來源切換 |
 | [0.3.0](docs/releases/v0.3.0.md) | Process 區：列出 session 專案底下仍在跑的 port 與 watcher，高亮顯示並以 `⚙` 標記 session |
 | [0.2.0](docs/releases/v0.2.0.md) | 不只 CLI：Claude Desktop 與已清理的 session、保留天數提醒、`/rename` 標題、分支續接、`--version` |

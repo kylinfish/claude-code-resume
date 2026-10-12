@@ -249,6 +249,7 @@ hundreds of sessions.
 
 | Version | Highlights |
 | ------- | ---------- |
+| [0.5.0](docs/releases/v0.5.0.md) | Artifacts and files written per session (`✦`, `Ctrl-L`), tidier process pane, split READMEs, demo data, tests |
 | [0.4.0](docs/releases/v0.4.0.md) | `ccc`: Claude Code + Codex sessions in one picker, with a `claude` / `codex` column and `Ctrl-A` source cycling |
 | [0.3.0](docs/releases/v0.3.0.md) | Process pane: ports and watchers still running under your session projects, highlighted, with `⚙` marks |
 | [0.2.0](docs/releases/v0.2.0.md) | Beyond the CLI: Claude Desktop and expired sessions, retention warning, `/rename` titles, fork, `--version` |
