@@ -170,10 +170,12 @@ t() {
     en:preview_label) fmt=' Preview ' ;;
     zh:open_label)   fmt=' 開啟 · %s ' ;;
     en:open_label)   fmt=' Open · %s ' ;;
-    zh:footer)       fmt='Enter 開啟  ^R 遠端  ^F 分支  ^Y 只印  ^L 開啟產出  ^X 已清理  ^T/^O/^G 排序' ;;
-    en:footer)       fmt='Enter resume  ^R remote  ^F fork  ^Y print  ^L open  ^X expired  ^T/^O/^G sort' ;;
-    zh:footer_ccc)   fmt='  ^A 來源' ;;
-    en:footer_ccc)   fmt='  ^A source' ;;
+    zh:footer)       fmt='Enter 開啟 ^R 遠端 ^F 分支 ^Y 只印 ^L 產出 ^X 已清理' ;;
+    en:footer)       fmt='Enter resume ^R RC ^F fork ^Y cmd ^L open ^X expired' ;;
+    zh:footer_ccc)   fmt='^A 來源' ;;
+    en:footer_ccc)   fmt='^A src' ;;
+    zh:footer_sort)  fmt='^T/^O/^G 排序' ;;
+    en:footer_sort)  fmt='^T/^O/^G sort' ;;
     zh:layout_invalid) fmt='ccr：CCR_LAYOUT 只接受 boxed|classic，改為自動偵測' ;;
     en:layout_invalid) fmt='ccr: CCR_LAYOUT accepts boxed|classic; detecting instead' ;;
     zh:layout_old_fzf) fmt='ccr：分框版面需要 fzf 0.58 以上（目前 %s），改用 classic；可執行 brew upgrade fzf' ;;
@@ -413,7 +415,7 @@ ver_ge() {
 # choose_layout -> sets LAYOUT, FZF_HAS_FOOTER, FZF_HAS_GUTTER from fzf --version
 choose_layout() {
   local v want="${CCR_LAYOUT:-}"
-  v="$(fzf --version 2>/dev/null | awk '{ print $1; exit }')"
+  v="$(fzf --version 2>/dev/null | awk '{ print $1; exit }' || true)"
   FZF_HAS_FOOTER=0; FZF_HAS_GUTTER=0
   ver_ge "$v" 0.63 && FZF_HAS_FOOTER=1
   ver_ge "$v" 0.66 && FZF_HAS_GUTTER=1
@@ -1379,6 +1381,7 @@ case "$SORT" in
   time|title|dir|workdir) ;;
   *) echo "$(t sort_invalid)" >&2; exit 1 ;;
 esac
+[ "$SORT" = workdir ] && SORT=dir
 
 THEME="$(resolve_theme "${THEME_OVERRIDE:-${CCR_THEME:-}}" warn)"
 export CCR_THEME="$THEME"
@@ -1457,7 +1460,9 @@ if [ "$LAYOUT" = boxed ]; then
   [ -n "$FZF_COLORS_BOXED" ] && COLOR_ARGS+=(--color="$FZF_COLORS_BOXED")
   BOX_HEADER="$PANE_ROWS"
   [ -n "$RETENTION" ] && BOX_HEADER="$BOX_HEADER"$'\n'"$RETENTION"
-  FOOTER="$(t footer)"; [ "$CODEX_MODE" = 1 ] && FOOTER="$FOOTER$(t footer_ccc)"
+  FOOTER="$(t footer)"
+  [ "$CODEX_MODE" = 1 ] && FOOTER="$FOOTER $(t footer_ccc)"
+  FOOTER="$FOOTER $(t footer_sort)"
   if [ "$FZF_HAS_FOOTER" = 1 ]; then
     LAYOUT_ARGS+=(--footer="$FOOTER")
     [ -n "$FZF_COLOR_FOOTER" ] && COLOR_ARGS+=(--color="$FZF_COLOR_FOOTER")

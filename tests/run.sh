@@ -109,7 +109,10 @@ EOF
 # fzf: record args + input; answer with $FAKE_KEY and the first row matching $FAKE_PICK
 cat > "$F/bin/fzf" <<'EOF'
 #!/bin/sh
-case "$1" in --version) echo "${FAKE_FZF_VERSION:-0.57.0} (fake)"; exit 0 ;; esac
+case "$1" in --version)
+  case "${FAKE_FZF_VERSION:-0.57.0}" in fail) exit 1 ;; esac
+  echo "${FAKE_FZF_VERSION:-0.57.0} (fake)"; exit 0 ;;
+esac
 for a in "$@"; do printf '%s\n' "$a"; done > "$FZF_ARGS"
 cat > "$FZF_DUMP"
 case " $* " in *--expect*) printf '%s\n' "$FAKE_KEY" ;; esac
@@ -285,6 +288,7 @@ has   "boxed footer no border" "$A" "--footer-border=none"
 has   "boxed gutter"         "$A" "--gutter= "
 has   "boxed label refresh"  "$A" "transform-input-label"
 hasnt "boxed: no pane title" "$A" "背後正在跑的 process"
+has   "boxed retention in header" "$A" "刪除 14 天"
 A="$(args_for 0.60.0 "$CCR")"
 has   "0.60 boxed"           "$A" "--style=full"
 hasnt "0.60 no footer"       "$A" "--footer"
@@ -298,6 +302,7 @@ has   "ccc border label"     "$(args_for 0.57.0 "$CCC")" "--border-label= ccc "
 has   "CCR_LAYOUT=classic"   "$(CCR_LAYOUT=classic args_for 0.74.4 "$CCR")" "--border-label"
 has   "boxed on old fzf warns" "$(CCR_LAYOUT=boxed FAKE_FZF_VERSION=0.57.0 run ctrl-y aaaa-live "$CCR" 2>&1)" "需要 fzf 0.58"
 has   "odd fzf version"      "$(args_for weird "$CCR")" "--border-label"
+has   "fzf --version fails"  "$(args_for fail "$CCR")" "--border-label"
 has   "bad CCR_LAYOUT warns" "$(CCR_LAYOUT=bogus FAKE_FZF_VERSION=0.74.4 run ctrl-y aaaa-live "$CCR" 2>&1)" "CCR_LAYOUT 只接受 boxed|classic"
 FAKE_FZF_VERSION=0.74.4 FAKE_PICK2="1111-demo" run ctrl-l aaaa-live "$CCR" >/dev/null 2>&1
 has   "boxed picker label"   "$(cat "$F/args")" "--list-label= 開啟 · live-session "
@@ -307,6 +312,11 @@ hasnt "classic no colors"    "$A" "--color="
 A="$(CCR_THEME=tokyonight COLORTERM=truecolor args_for 0.74.4 "$CCC")"
 has   "boxed colors"         "$A" "header-border:#ff9e64"
 has   "ccc source in label"  "$A" "--input-label= 🔍 搜尋 · time · all "
+STYLE_N="$(grep -n '^--style=full$' "$F/args" | head -1 | cut -d: -f1)"
+COLOR_N="$(grep -n '^--color=' "$F/args" | head -1 | cut -d: -f1)"
+if [ -n "$STYLE_N" ] && [ -n "$COLOR_N" ] && [ "$COLOR_N" -gt "$STYLE_N" ]; then ok
+else bad "colour args after layout args" "--color= after --style=full" "style@$STYLE_N color@$COLOR_N"; fi
+has   "boxed -s workdir -> dir" "$(args_for 0.74.4 "$CCR" -s workdir)" "--input-label= 🔍 搜尋 · dir "
 S="$(mktemp)"; printf 'sort=title\nsource=codex\n' > "$S"
 has   "__label"              "$(CCR_STATE="$S" CCR_CODEX=1 "$SH" "$CCC" __label)" " 🔍 搜尋 · title · codex "
 CCR_STATE="$S" "$SH" "$CCR" __set_sort dir
