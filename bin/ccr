@@ -460,9 +460,17 @@ if mode == "pick":
             print(f"{x['path']}\t{x['kind']} {short(x['path'])}")
     sys.exit(0)
 
-E = "\x1b["; R = E + "0m"
-KEY, TTL, URL, OK, GONE, DIM = E + "33m", E + "1;97m", E + "4;92m", E + "92m", E + "91m", E + "2m"
-KIND = {"+": E + "92m+", "~": E + "93m~", "-": E + "91m-"}
+PAL = dict(kv.split("=", 1) for kv in os.environ.get("CCR_PALETTE", "").split("|") if "=" in kv)
+def C(role, style=""):
+    v = PAL.get(role)
+    if not v:
+        return ""
+    if v.startswith("!"):
+        return "\x1b[" + v[1:] + "m"
+    return "\x1b[" + (style + ";" if style else "") + v + "m"
+R = "\x1b[0m"
+KEY, TTL, URL, OK, GONE, DIM = C("key"), C("fg", "1"), C("url", "4"), C("ok"), C("bad"), C("dim")
+KIND = {"+": C("ok") + "+", "~": C("key") + "~", "-": C("bad") + "-"}
 def mark(p):
     return f"{OK}✓{R}" if os.path.exists(p) else f"{GONE}✗{R}"
 if arts:
@@ -502,8 +510,9 @@ open_target() {
 do_preview() {
   local title="${1:-}" when="${2:-}" rel="${3:-}" cwd="${4:-}" last="${5:-}" sid="${6:-}"
   local kind="${7:-cli}" target="${8:-}" extra="${9:-}"
-  local C_RESET=$'\033[0m' C_TITLE=$'\033[1;36m' C_DIM=$'\033[2m' C_WARN=$'\033[1;31m' C_KEY=$'\033[33m'
-  local C_DESK=$'\033[35m'
+  local C_RESET=$'\033[0m' C_TITLE C_DIM C_WARN C_KEY C_DESK C_CODEX
+  C_TITLE="$(pal accent 1)"; C_DIM="$(pal dim)"; C_WARN="$(pal bad 1)"
+  C_KEY="$(pal key)"; C_DESK="$(pal desktop)"; C_CODEX="$(pal codex)"
   printf '%s📌 %s%s\n\n' "$C_TITLE" "$title" "$C_RESET"
   printf '%s🕒%s %s  %s(%s)%s\n' "$C_KEY" "$C_RESET" "$when" "$C_DIM" "$rel" "$C_RESET"
   if [ "$kind" = expired ]; then
@@ -513,7 +522,7 @@ do_preview() {
     return 0
   fi
   if [ "$kind" = codex ]; then
-    printf '%s%s%s\n' $'\033[36m' "$(t pv_codex)" "$C_RESET"
+    printf '%s%s%s\n' "$C_CODEX" "$(t pv_codex)" "$C_RESET"
     [ -n "$extra" ] && printf '%s🌿%s %s\n' "$C_KEY" "$C_RESET" "$extra"
   fi
   if [ "$kind" = desktop ]; then
@@ -575,22 +584,30 @@ except Exception:
 new_cache = {}
 cache_dirty = False
 
-# --- ANSI palette (256-color) ---
+# --- colours: semantic roles from CCR_PALETTE (see load_palette) ---
+PAL = dict(kv.split("=", 1) for kv in os.environ.get("CCR_PALETTE", "").split("|") if "=" in kv)
+def C(role, style=""):
+    v = PAL.get(role)
+    if not v:
+        return ""
+    if v.startswith("!"):           # classic: verbatim SGR, style ignored
+        return "\x1b[" + v[1:] + "m"
+    return "\x1b[" + (style + ";" if style else "") + v + "m"
 ESC = "\x1b"
 R   = ESC + "[0m"
-def col(n): return ESC + "[38;5;" + str(n) + "m"
-SEP        = col(240) + "│" + R    # dim grey separator
-C_RECENT   = col(78)               # green   (< 1 day)
-C_MID      = col(180)              # warm    (< 7 days)
-C_OLD      = col(244)              # dim     (older)
-C_TITLE    = col(253)             # near-white
-C_TITLE_LO = col(244)             # dim (untitled / system)
-C_PATH     = col(110)             # soft blue
-C_DESKTOP  = col(176)             # soft magenta (Claude Desktop rows)
-C_EXPIRED  = col(240)             # dark grey (expired rows)
-C_CODEX    = col(80)              # teal (Codex rows)
-C_CLAUDE   = col(173)             # orange (Claude tag in the ccc tool column)
-C_OUT      = col(141)             # purple (✦ session has artifacts / files written)
+SEP        = C("sep") + "│" + R
+C_RECENT   = C("recent")
+C_MID      = C("week")
+C_OLD      = C("old")
+C_TITLE    = C("fg")
+C_TITLE_LO = C("dim")
+C_PATH     = C("path")
+C_DESKTOP  = C("desktop")
+C_EXPIRED  = C("expired")
+C_CODEX    = C("codex")
+C_CLAUDE   = C("claude")
+C_OUT      = C("out")
+C_GEAR     = C("gear")
 
 def dwidth(s):
     return sum(2 if unicodedata.east_asian_width(c) in ("W", "F") else 1 for c in s)
@@ -812,7 +829,7 @@ def add_row(epoch, sid, cwd, title, last, kind, target, extra, path_label, pathc
             tc = C_EXPIRED
         tool = f"{tc}{fit(tname, 6)}{R} {SEP} "
     display = (f"{tool}{relc}{fit(rel, 9, 'right')}{R} {SEP} "
-               f"{C_MID}{mark}{R}{C_OUT}{omark}{R} {titlec}{fit(title, 41)}{R} {SEP} {pathc}{path_label}{R}")
+               f"{C_GEAR}{mark}{R}{C_OUT}{omark}{R} {titlec}{fit(title, 41)}{R} {SEP} {pathc}{path_label}{R}")
     rows.append((epoch, title, path_label, kind == "expired",
                  "\t".join([display, sid, cwd, when, rel, title, last, kind, target, extra])))
 
@@ -1208,8 +1225,8 @@ runtime_lines() {
   local c0='' cP='' cN='' cC='' cD='' cU='' cHot=''
   if [ "${1:-}" = --pane ]; then
     pane=1; shift
-    c0=$'\033[0m' cP=$'\033[1;93m' cN=$'\033[97m' cC=$'\033[1;97m'
-    cD=$'\033[96m' cU=$'\033[4;92m' cHot=$'\033[1;91m'
+    c0=$'\033[0m' cP="$(pal port 1)" cN="$(pal fg)" cC="$(pal fg 1)"
+    cD="$(pal dir)" cU="$(pal url 4)" cHot="$(pal hot 1)"
   fi
   runtime_procs "$@" | while IFS="$TAB" read -r port pid cpu rss cmd dir; do
     mb=$(( (${rss:-0} + 512) / 1024 ))
@@ -1348,31 +1365,35 @@ while IFS= read -r d; do DIRS+=("$d"); done <<EOF
 $(printf '%s\n' "$DATA" | awk -F"$TAB" '$8 != "expired" && $3 != "" {print $3}' | sort -u)
 EOF
 PANE_MAX=8
-PANE=$'\033[1;97m'"$(t pane_title)"$'\033[0m'
+PANE_COUNT=0
 if [ ${#DIRS[@]} -gt 0 ]; then PROCS="$(runtime_lines --pane "${DIRS[@]}")"; else PROCS=""; fi
 if [ -n "$PROCS" ]; then
-  PANE="$PANE"$'\n'"$(printf '%s\n' "$PROCS" | sed -n "1,${PANE_MAX}p")"
-  N="$(printf '%s\n' "$PROCS" | wc -l | tr -d ' ')"
-  [ "$N" -gt "$PANE_MAX" ] && PANE="$PANE"$'\n'"$(t pane_more "$((N - PANE_MAX))")"
+  PANE_COUNT="$(printf '%s\n' "$PROCS" | wc -l | tr -d ' ')"
+  PANE_ROWS="$(printf '%s\n' "$PROCS" | sed -n "1,${PANE_MAX}p")"
+  [ "$PANE_COUNT" -gt "$PANE_MAX" ] && PANE_ROWS="$PANE_ROWS"$'\n'"$(t pane_more "$((PANE_COUNT - PANE_MAX))")"
   # mark sessions that have something running, then rebuild the rows
   CCR_BUSY="$(runtime_procs "${DIRS[@]}" | cut -d"$TAB" -f6 | sort -u)"
   export CCR_BUSY
   DATA="$(scan "$FILTER" "$SORT" "$EXPIRED")"
 else
-  PANE="$PANE"$'\n'"$(t pane_none)"
+  PANE_ROWS="$(pal dim)$(t pane_none)"$'\033[0m'
 fi
-PANE="$PANE"$'\n\033[38;5;240m'"$(printf '─%.0s' $(seq 1 72))"$'\033[0m'
-
-HEADER="$PANE"$'\n'"$(t header)"$'\n'"$(t header2)"
-[ "$CODEX_MODE" = 1 ] && HEADER="$HEADER"$'\n'"$(t header3)"
-SOURCE_BIND=()
-[ "$CODEX_MODE" = 1 ] && SOURCE_BIND=(--bind 'ctrl-a:execute-silent("$CCR_SELF" __cycle_source)+reload("$CCR_SELF" __list)')
+RETENTION=""
 read -r KEEP_DAYS KEEP_SET <<EOF
 $(retention_days)
 EOF
 if [ "$KEEP_SET" = 0 ] || [ "$KEEP_DAYS" -lt 90 ]; then
-  HEADER="$HEADER"$'\n\033[33m'"$(t retention "$KEEP_DAYS" "$CONFIG_DIR/settings.json")"$'\033[0m'
+  RETENTION="$(pal warn)$(t retention "$KEEP_DAYS" "$CONFIG_DIR/settings.json")"$'\033[0m'
 fi
+HINTS="$(pal dim)$(t header)"$'\n'"$(t header2)"
+[ "$CODEX_MODE" = 1 ] && HINTS="$HINTS"$'\n'"$(t header3)"
+HINTS="$HINTS"$'\033[0m'
+# classic layout: one header with title, rows, rule, hints and the warning
+HEADER="$(pal fg 1)$(t pane_title)"$'\033[0m\n'"$PANE_ROWS"
+HEADER="$HEADER"$'\n'"$(pal sep)$(printf '─%.0s' $(seq 1 72))"$'\033[0m\n'"$HINTS"
+[ -n "$RETENTION" ] && HEADER="$HEADER"$'\n'"$RETENTION"
+SOURCE_BIND=()
+[ "$CODEX_MODE" = 1 ] && SOURCE_BIND=(--bind 'ctrl-a:execute-silent("$CCR_SELF" __cycle_source)+reload("$CCR_SELF" __list)')
 
 # Show only column 1 (DISPLAY); preview/sort use the hidden columns.
 RESULT="$(

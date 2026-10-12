@@ -262,6 +262,14 @@ has   "default is tokyonight" "$(CCR_THEME= COLORTERM=truecolor "$SH" "$CCC" __l
 has   "--theme beats env"     "$(CCR_THEME=kanagawa COLORTERM=truecolor run ctrl-y aaaa-live "$CCC" --theme gruvbox >/dev/null; grep aaaa-live "$F/dump" | cut -f1)" $'\033[38;2;254;128;25mclaude'
 has   "unknown theme warns"   "$(CCR_THEME=nope run ctrl-y aaaa-live "$CCR" 2>&1)" "未知的主題「nope」"
 has   "subcommand w/o palette" "$(CCR_PALETTE= CCR_THEME=tokyonight COLORTERM=truecolor "$SH" "$CCR" __list time | grep aaaa-live | cut -f1)" $'\033[38;2;'
+strip_row() { strip | sed 's/[[:space:]]*$//'; }
+same() { if [ "$2" = "$3" ]; then ok; else bad "$1" "$3" "$2"; fi; }   # exact match, multi-line safe
+same "same layout any theme" "$(CCR_THEME=classic "$SH" "$CCC" __list time | cut -f1 | strip_row)" "$(CCR_THEME=tokyonight COLORTERM=truecolor "$SH" "$CCC" __list time | cut -f1 | strip_row)"
+has  "preview uses theme"    "$(CCR_THEME=tokyonight COLORTERM=truecolor "$SH" "$CCR" __preview t w r "$P" "" aaaa-live cli "" "")" $'\033[1;38;2;122;162;247m📌'
+has  "outputs use theme"     "$(CCR_THEME=tokyonight COLORTERM=truecolor "$SH" "$CCR" __preview t w r "$P" "" aaaa-live cli "" "")" $'\033[38;2;158;206;106m✓'
+fresh; COLORTERM=truecolor CCR_THEME=tokyonight run ctrl-y aaaa-live "$CCR" >/dev/null
+has  "pane uses theme"       "$(awk '/PID 102/' "$F/args")" $'\033[1;38;2;247;118;142m 75.0% CPU'
+has  "pane port bold yellow" "$(awk '/PID 102/' "$F/args")" $'\033[1;38;2;224;175;104m:5173'
 
 echo "pass=$pass fail=$fail"
 [ "$fail" = 0 ]
