@@ -31,16 +31,16 @@
   -       PID 6060     1.0% CPU    80 MB  tsc --watch                 ~/code/acme-api
 ────────────────────────────────────────────────────────────────────────
 Enter 開啟  ^R +手機遠端  ^F 分支  ^Y 只印指令  │  排序 ^T 時間 ^O 標題 ^G 目錄  │  Esc 取消
-^X 顯示／隱藏已清理的 session  │  Desktop 對話以 fork 在 CLI 開啟
+^X 顯示／隱藏已清理的 session  │  ^L 開啟 artifact／檔案（✦）  │  Desktop 對話以 fork 開啟
 [time] ❯
-     剛剛 │ ⚙ Add JWT auth to the API gateway          │ ~/code/acme-api
- 2 分鐘前 │   修 checkout 不穩定的整合測試             │ ~/code/storefront
-   1 天前 │   教團隊用 Claude Desktop                  │ Desktop · ~/code/handbook
-  11 天前 │   建立 CI release pipeline                 │ ~/code/infra
+     剛剛 │ ⚙✦ Add JWT auth to the API gateway         │ ~/code/acme-api
+ 2 分鐘前 │    修 checkout 不穩定的整合測試            │ ~/code/storefront
+   1 天前 │    教團隊用 Claude Desktop                 │ Desktop · ~/code/handbook
+  11 天前 │    建立 CI release pipeline                │ ~/code/infra
 ```
 
-> **0.4 新功能**：`ccc` 同時列出 Claude Code 與 Codex 的 session。
-> 0.3 加入 process 區，0.2 加入 Desktop／已清理的 session 與分支續接。
+> **0.5 新功能**：標 `✦` 的 session 會列出它產生的 artifact 與檔案，`Ctrl-L` 可直接開啟。
+> 0.4 加入 `ccc`（Codex），0.3 加入 process 區，0.2 加入 Desktop／已清理的 session 與分支續接。
 > 詳見 [版本紀錄](#版本紀錄)。
 
 ## 功能
@@ -48,6 +48,7 @@ Enter 開啟  ^R +手機遠端  ^F 分支  ^Y 只印指令  │  排序 ^T 時�
 - [Session](#session)：列表裡會出現什麼
 - [Resume](#resume)：選定之後會做什麼
 - [Process 區](#process-區)：session 留在背景的 process
+- [產出](#產出)：每個 session 產生的 artifact 與檔案
 - [Codex（`ccc`）](#codexccc)：Claude Code 與 Codex 放在同一個列表
 - [日常使用](#日常使用)：排序、顏色、語言、速度
 
@@ -80,6 +81,15 @@ Enter 開啟  ^R +手機遠端  ^F 分支  ^Y 只印指令  │  排序 ^T 時�
 | 高亮 | port 黃色、指令亮白、專案青色、連結綠色，CPU 達 50% 以上顯示紅色 |
 | 標記 session | 有 process 的 session 標 `⚙`，resume 前也會印出 |
 | 不列雜訊 | 不列 shell、coding agent 本身（`claude`、`codex`）與它們啟動的 MCP server；同一個 process tree 只列一筆 |
+
+### 產出
+
+| 功能 | 說明 |
+| ---- | ---- |
+| Artifacts | 發布過 claude.ai artifact 的 session，預覽會列出標題、版本數、最後更新時間、`claude.ai/code/artifact/…` 連結，以及本機原始檔（`✓`／`✗`） |
+| 產生的檔案 | session 新增（`+`）或修改（`~`）的檔案，最新的在上，`✓`／`✗` 表示檔案是否還在。Claude Code 取自 `Write`／`Edit`，Codex 取自 `FileChange` 紀錄；暫存目錄與 scratchpad 的檔案不列 |
+| `✦` 標記 | 有 artifact 或產生檔案的 session，在 `⚙` 旁標 `✦` |
+| 開啟 | `Ctrl-L` 用瀏覽器開 artifact、用預設 App 開檔案；有多個時先跳出小選單挑選 |
 
 ### Codex（`ccc`）
 
@@ -145,6 +155,7 @@ cd claude-code-resume
 | `Ctrl-F` | 分支：以新的 session id 續接（`--fork-session`） |
 | `Ctrl-Y` | 只印出 `cd … && claude --resume …` 指令，不執行 |
 | `Ctrl-X` | 顯示／隱藏已清理的 session |
+| `Ctrl-L` | 開啟 session 的 artifact 或產生的檔案（標 `✦` 的 session） |
 | `Ctrl-A` | 僅 `ccc`：來源切換，全部 → Claude → Codex |
 | `Ctrl-T` | 依時間排序 |
 | `Ctrl-O` | 依標題排序 |
@@ -166,9 +177,9 @@ ccc --version            # ccc 0.4.0
 ```
 
 ```
-codex  │   9 分鐘前 │   修 rate limiter                          │ ~/code/acme-api
-claude │       剛剛 │ ⚙ Add JWT auth to the API gateway          │ ~/code/acme-api
-claude │     1 天前 │   教團隊用 Claude Desktop                  │ Desktop · ~/code/handbook
+codex  │   9 分鐘前 │  ✦ 修 rate limiter                         │ ~/code/acme-api
+claude │       剛剛 │ ⚙✦ Add JWT auth to the API gateway         │ ~/code/acme-api
+claude │     1 天前 │    教團隊用 Claude Desktop                 │ Desktop · ~/code/handbook
 ```
 
 | 項目 | 說明 |
@@ -206,6 +217,7 @@ claude │     1 天前 │   教團隊用 Claude Desktop                  │ D
   ```
 
 - **Process 區**：一次 `ps`，加上 `lsof` 取得 listen 的 TCP port 與工作目錄，快取 5 秒。有 listen port 或執行已知開發指令（vite、next、tsc、nodemon、python…），且工作目錄在某個 session 目錄底下的 process 才會列出（以最深的目錄為準；`$HOME` 與 `/` 不算）。不列 shell、coding agent 與它們啟動的 MCP server，同一個 process tree 只留一筆，有 port 的優先。
+- **產出**：artifact 來自 Claude Code 每次發布時寫入的 `frame-link` 紀錄（標題、連結、本機檔案、時間）；產生的檔案來自 `Write`／`Edit`／`NotebookEdit` 工具呼叫，Codex 則來自每個 thread rollout 檔裡的 `FileChange`。兩者都在掃描時整理並跟索引一起快取，之後啟動不會變慢。
 - **排序與快取**：排序在掃描時完成，選單內切換排序只是重新載入列表。依檔案修改時間快取索引（`~/.cache/ccr`），沒變動的 session 不重複解析，數百個 session 也能快速啟動。
 
 ## 版本紀錄

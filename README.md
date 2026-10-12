@@ -33,12 +33,12 @@ Control**. Use **`ccc`** to get **Claude Code + Codex** in one list.
   -       PID 6060     1.0% CPU    80 MB  tsc --watch                 ~/code/acme-api
 ────────────────────────────────────────────────────────────────────────
 Enter resume  ^R +remote  ^F fork  ^Y print cmd  │  sort ^T time ^O title ^G dir  │  Esc quit
-^X show/hide expired sessions  │  Desktop sessions open as a fork
+^X show/hide expired sessions  │  ^L open artifact / file (✦)  │  Desktop sessions open as a fork
 [time] ❯
- just now │ ⚙ Add JWT auth to the API gateway          │ ~/code/acme-api
-   2m ago │   Fix flaky checkout integration test      │ ~/code/storefront
-   1d ago │   Teach the team Claude Desktop features   │ Desktop · ~/code/handbook
-  11d ago │   Set up the CI release pipeline           │ ~/code/infra
+ just now │ ⚙✦ Add JWT auth to the API gateway         │ ~/code/acme-api
+   2m ago │    Fix flaky checkout integration test     │ ~/code/storefront
+   1d ago │    Teach the team Claude Desktop features  │ Desktop · ~/code/handbook
+  11d ago │    Set up the CI release pipeline          │ ~/code/infra
 ┌──────────────────────────────────────────────────────────┐
 │ 📌 Add JWT auth to the API gateway                       │
 │ 🕒 2026-06-20 14:08  (just now)                          │
@@ -48,8 +48,9 @@ Enter resume  ^R +remote  ^F fork  ^Y print cmd  │  sort ^T time ^O title ^G d
 └──────────────────────────────────────────────────────────┘
 ```
 
-> **What's new in 0.4** — `ccc` lists Claude Code and Codex sessions together.
-> 0.3 added the process pane, 0.2 added Desktop / expired sessions and fork.
+> **What's new in 0.5** — sessions marked `✦` list the artifacts and files they
+> produced, and `Ctrl-L` opens one. 0.4 added `ccc` (Codex), 0.3 the process
+> pane, 0.2 Desktop / expired sessions and fork.
 > See [Releases](#releases).
 
 ## Features
@@ -57,6 +58,7 @@ Enter resume  ^R +remote  ^F fork  ^Y print cmd  │  sort ^T time ^O title ^G d
 - [Sessions](#sessions) — what shows up in the list
 - [Resuming](#resuming) — what happens when you pick one
 - [Process pane](#process-pane) — what your sessions left running
+- [Artifacts & files](#artifacts--files) — what each session produced
 - [Codex (`ccc`)](#codex-ccc) — Claude Code and Codex in one list
 - [Everyday](#everyday) — sorting, colors, language, speed
 
@@ -83,6 +85,13 @@ Enter resume  ^R +remote  ^F fork  ^Y print cmd  │  sort ^T time ^O title ^G d
 - **Highlighted** — yellow port, bright command, cyan project, green link, and red CPU once a process is at 50% or more.
 - **Marked sessions** — sessions with something running get a `⚙`, and resuming one prints its processes first.
 - **No noise** — shells, coding agents themselves (`claude`, `codex`) and the MCP servers they start are left out; one row per process tree.
+
+### Artifacts & files
+
+- **Artifacts** — sessions that published claude.ai artifacts list them in the preview: title, number of versions, last update, the `claude.ai/code/artifact/…` link, and the local source file with `✓` / `✗`.
+- **Files written** — files the session created (`+`) or changed (`~`), newest first, with `✓` / `✗` for whether they still exist. For Claude Code they come from `Write` / `Edit` calls; for Codex from its `FileChange` records. Files in temp / scratchpad dirs are left out.
+- **`✦` mark** — sessions with artifacts or files get a `✦` next to the `⚙`.
+- **Open one** — `Ctrl-L` opens an artifact in the browser or a file in its default app; with several, a small picker comes up first.
 
 ### Codex (`ccc`)
 
@@ -141,6 +150,7 @@ ccr --help
 | `Ctrl-F` | fork: resume into a new session id (`--fork-session`)         |
 | `Ctrl-Y` | print the `cd … && claude --resume …` command without running |
 | `Ctrl-X` | show / hide cleaned-up (expired) sessions                     |
+| `Ctrl-L` | open one of the session's artifacts / files written (`✦`)     |
 | `Ctrl-A` | `ccc` only: cycle the source — all → Claude → Codex           |
 | `Ctrl-T` | sort by time                                                  |
 | `Ctrl-O` | sort by title                                                 |
@@ -164,9 +174,9 @@ ccc --version            # ccc 0.4.0
 ```
 
 ```
-codex  │   9m ago │   Fix the rate limiter                     │ ~/code/acme-api
-claude │ just now │ ⚙ Add JWT auth to the API gateway          │ ~/code/acme-api
-claude │   1d ago │   Teach the team Claude Desktop features   │ Desktop · ~/code/handbook
+codex  │   9m ago │  ✦ Fix the rate limiter                    │ ~/code/acme-api
+claude │ just now │ ⚙✦ Add JWT auth to the API gateway         │ ~/code/acme-api
+claude │   1d ago │    Teach the team Claude Desktop features  │ Desktop · ~/code/handbook
 ```
 
 - A leading tool column says `claude` or `codex`. Because it is the first thing on each row, typing `^codex` or `^claude` in the search filters by tool (Desktop and expired sessions count as `claude`). The preview of a Codex row shows branch, model and token count.
@@ -223,6 +233,12 @@ python, …) and its working directory is inside one of the listed sessions'
 directories (the deepest one wins; `$HOME` and `/` never count). Shells, coding
 agents and the MCP servers they start are skipped, and only one row is kept per
 process tree, port holders first.
+
+Artifacts come from the `frame-link` records Claude Code writes each time it
+publishes one (title, link, local file, time); files written come from `Write` /
+`Edit` / `NotebookEdit` tool calls, and for Codex from the `FileChange` items in
+each thread's rollout file. Both are extracted during the scan and cached with
+the rest of the index, so they cost nothing on later runs.
 
 Sorting is done in the scan step, so the in-menu sort keys simply `reload` the
 list. A small on-disk index cache (`~/.cache/ccr`) keyed by file modification
