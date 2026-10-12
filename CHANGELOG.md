@@ -10,10 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Themes: `tokyonight` (new default), `catppuccin`, `kanagawa`, `gruvbox`, and `classic` (the pre-0.6 look), picked with `-t`/`--theme <name>` or `CCR_THEME` (`--theme` wins). Every role (background, text, borders, labels, recency colors, process-pane highlights, …) comes from one palette table per theme; colors render in truecolor when `$COLORTERM` is `truecolor`/`24bit`, and fall back to the nearest xterm-256 color otherwise. An unknown theme name warns on stderr and falls back to `tokyonight`.
-- Boxed layout on fzf ≥ 0.58: processes, search, sessions, and preview each sit in their own titled, rounded-border box, themed from the same palette. `--footer` (the key-hint line) needs fzf ≥ 0.63 (otherwise the hints are the last line of the Processes box) and `--gutter` needs ≥ 0.66; older fzf renders the pre-0.6 single-border layout instead (also themed). `CCR_LAYOUT=boxed|classic` forces either one; an unsupported combination (or an unparseable `fzf --version`) warns and falls back.
+- Boxed layout on fzf ≥ 0.58: processes, search, sessions, and preview each sit in their own titled, rounded-border box, themed from the same palette. `--footer` (the key-hint line) needs fzf ≥ 0.63 (otherwise the hints are the last line of the Processes box) and `--gutter` needs ≥ 0.66; older fzf renders the pre-0.6 single-border layout instead (also themed). `CCR_LAYOUT=boxed|classic` forces either one; an unsupported combination warns and falls back, and an unparseable `fzf --version` falls back to `classic` silently.
 
 ### Changed
-- `classic` keeps row, process-pane and preview content in the exact 0.5.0 colors, but chrome text (key hints, the process-pane title, warnings) now follows the palette roles too, so the hints render in grey instead of ANSI-dim and the process-pane title is no longer bold.
+- `classic`: the 0.5.0 palette, near-identical (a few preview and process-pane tints, plus chrome text — key hints, the process-pane title, warnings — now share a role), so e.g. the hints render in grey instead of ANSI-dim and the process-pane title is no longer bold.
 
 ## [0.5.0] - 2026-10-12
 

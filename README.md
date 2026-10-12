@@ -28,21 +28,21 @@ Control**. Use **`ccc`** to get **Claude Code + Codex** in one list.
 </p>
 
 ```
-╭─ ⚙ Processes · 2 ───────────────────────────────────────────────────────────────────────╮
-│  -       PID 4242    59.1% CPU    45 MB  webpack --watch            ~/code/payments       │
-│  :5173   PID 6060     0.0% CPU    38 MB  vite --port 5173           ~/code/acme-api  → http://localhost:5173 │
-╰──────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ 🔍 Search · time ───────────────────────────────────────────────────────────────────────╮
-│ ❯ jwt                                                                             3/14 │
-╰──────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Sessions ───────────────────────────────────────────────────────────────────────────────╮
-│▌ just now │ ⚙✦ Add JWT auth to the API gateway         │ ~/code/acme-api                  │
-│    2m ago │    Fix flaky checkout integration test     │ ~/code/storefront                │
-╰──────────────────────────────────────────────────────────────────────────────────────────╯
- Enter resume  ^R remote  ^F fork  ^Y print  ^L open  ^X expired  ^T/^O/^G sort
-╭─ Preview ────────────────────────────────────────────────────────────────────────────────╮
-│ 📌 Add JWT auth to the API gateway                                                       │
-╰──────────────────────────────────────────────────────────────────────────────────────────╯
+╭ ⚙ Processes · 2 ──────────────────────────────────────────────────────────────────────────────╮
+│  -       PID 4242   59.1% CPU   45 MB  webpack --watch    ~/payments                          │
+│  :5173   PID 6060    0.0% CPU   38 MB  vite --port 5173  ~/acme-api  → http://localhost:5173  │
+╰───────────────────────────────────────────────────────────────────────────────────────────────╯
+╭ 🔍 Search · time ─────────────────────────────────────────────────────────────────────────────╮
+│ ❯ jwt                                                                                    3/14 │
+╰───────────────────────────────────────────────────────────────────────────────────────────────╯
+╭ Sessions ─────────────────────────────────────────────────────────────────────────────────────╮
+│▌ just now │ ⚙✦ Add JWT auth to the API gateway         │ ~/code/acme-api                      │
+│    2m ago │    Fix flaky checkout integration test     │ ~/code/storefront                    │
+╰───────────────────────────────────────────────────────────────────────────────────────────────╯
+ Enter resume ^R RC ^F fork ^Y cmd ^L open ^X expired ^T/^O/^G sort
+╭ Preview ──────────────────────────────────────────────────────────────────────────────────────╮
+│ 📌 Add JWT auth to the API gateway                                                            │
+╰───────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 > **What's new in 0.6** — Tokyo Night theme by default, four more palettes
@@ -121,7 +121,8 @@ Control**. Use **`ccc`** to get **Claude Code + Codex** in one list.
 ## Requirements
 
 - `bash` (3.2+, the macOS default works)
-- [`fzf`](https://github.com/junegunn/fzf)
+- [`fzf`](https://github.com/junegunn/fzf) — fzf ≥ 0.58 gets the boxed layout;
+  older versions still work, with the classic layout (`brew upgrade fzf` to get boxed)
 - `python3`
 - the `claude` CLI (to actually resume)
 - `lsof` (optional, macOS default; for the process pane)
@@ -184,7 +185,7 @@ sessions in the same list.
 ```sh
 ccc                      # Claude Code + Codex sessions, newest first
 ccc --last               # resume the most recent session of either tool
-ccc --version            # ccc 0.4.0
+ccc --version            # ccc 0.6.0
 ```
 
 ```

@@ -82,18 +82,23 @@ Other themes (same role order as the table above):
 | port, dir, url, hot | `#f9e2af` `#89dceb` `#a6e3a1` `#f38ba8` | `#e6c384` `#7fb4ca` `#98bb6c` `#e46876` | `#fabd2f` `#8ec07c` `#b8bb26` `#fb4934` |
 | key, ok, bad, warn | `#f9e2af` `#a6e3a1` `#f38ba8` `#f9e2af` | `#e6c384` `#98bb6c` `#e46876` `#e6c384` | `#fabd2f` `#b8bb26` `#fb4934` `#fabd2f` |
 
-`classic` maps each role to the SGR codes `ccr` 0.5.0 uses today, so it looks the
-same. It is not byte-for-byte identical: 0.5.0 uses a few near-duplicate codes for
-the same meaning (the missing-directory warning is `1;31` while `✗` is `91`; the
-process-pane title is `1;97` while session titles are `38;5;253`). Each of those
-pairs now shares one role, so it renders with that role's code. One more
-divergence worth noting: row, process-pane and preview *content* keep the exact
-0.5.0 colours, but chrome text — the key-hint lines, the process-pane title, and
-warnings — now goes through the `dim` / `fg` / `warn` roles like every other
-theme. Since `classic`'s palette values carry the role's code verbatim (no style
-added on top), the key hints render in `dim` grey instead of 0.5.0's ANSI-dim
-style, and the process-pane title is no longer bold (`fg`'s `38;5;253`, not the
-old `1;97`).
+`classic`: the 0.5.0 palette, near-identical — not byte-for-byte identical.
+0.5.0 used a few near-duplicate or styled (bold/dim) codes for roles that now
+render with one shared, unstyled code:
+
+- preview: the Desktop line was `35`, now `38;5;176`; the Codex line was `36`,
+  now `38;5;80`; dim text (the relative-time suffix, artifact meta) was ANSI
+  `2`, now `38;5;244`; the missing-directory / expired warning was `1;31`, now
+  `91`
+- outputs preview: the `~` (changed-file) marker was `93`, now `33`; artifact
+  titles were `1;97` (bold), now `38;5;253` (not bold)
+- process pane: the PID/CPU/MB text was `97`, now `38;5;253`; the command was
+  `1;97` (bold), now `38;5;253` (not bold)
+- chrome: the key-hint lines were ANSI-dim (`2`), now `dim` grey; the
+  process-pane title was `1;97` (bold), now `fg`'s `38;5;253` (not bold)
+
+Since `classic`'s palette values carry each role's code verbatim (no style
+added on top), none of the above keep their old `1;`-bold or `2`-dim prefix.
 
 | Role | classic | Role | classic |
 | ---- | ------- | ---- | ------- |
@@ -157,7 +162,7 @@ Top to bottom, all full width, rounded borders, labels left-aligned (`pos=2`):
 | Processes | header (`--header-first`, `--header-border`) | ` ⚙ Processes · N ` (` ⚙ Processes ` when none) | process rows, or "none detected"; the retention warning as the last line when it applies |
 | Search | input (`--input-border`) | ` 🔍 Search · <sort> ` (`ccc`: ` · <source>` appended) | prompt `❯ `, `--info=inline-right` |
 | Sessions | list (`--list-border`) | ` Sessions ` (no count — fzf's own `--info=inline-right` already shows one) | rows; `--highlight-line`; pointer `▌` on the current row only (`--gutter=' '`) |
-| Key hints | footer (`--footer`, no border) | — | one dim line: `Enter resume  ^R remote  ^F fork  ^Y print  ^L open  ^X expired  ^T/^O/^G sort` (+ `^A source` in `ccc`) |
+| Key hints | footer (`--footer`, no border) | — | one dim line, short enough that `ccc`'s version still fits fzf's borderless footer on an 80-column terminal (measured against real fzf 0.74: the footer's own ~4-column indent plus a 2-column truncation marker leave 74 usable columns, not the 76 a naive `80 - indent` would suggest): `Enter resume ^R RC ^F fork ^Y cmd ^L open ^X expired ^T/^O/^G sort` (66 cols), with `^A src` inserted before the sort hint in `ccc` (73 cols) — assembled as `footer` + optional `footer_ccc` + `footer_sort` |
 | Preview | `--preview-window=down,45%,border-rounded` | ` Preview ` | as today |
 
 The process pane no longer needs its own title line and `─` rule (the box label
@@ -192,7 +197,7 @@ Theme and layout are independent: any theme works with either layout.
   and renders Tokyo Night.
 - **Layout detection**: the fake `fzf` answers `--version` from `$FAKE_FZF_VERSION`.
   0.74 → args contain `--style=full`, `--header-label`, `--input-label`,
-  `--list-label`, `--gutter`, `change-input-label`; 0.57 → `--border-label`, no
+  `--list-label`, `--gutter`, `transform-input-label`; 0.57 → `--border-label`, no
   `--style`. `CCR_LAYOUT=classic` forces classic on 0.74; `CCR_LAYOUT=boxed` on 0.57
   warns and uses classic.
 - Existing colour assertions (hot CPU red, etc.) are rewritten in terms of the
