@@ -113,7 +113,7 @@
 | ---- | ---- |
 | 五種主題 | `tokyonight`（預設）、`catppuccin`、`kanagawa`、`gruvbox`、`classic`（0.6 以前的配色）。用 `ccr --theme gruvbox` 或 `CCR_THEME=catppuccin ccr` 切換（兩者都設定時 `--theme` 優先） |
 | Truecolor，可退回 256 色 | `$COLORTERM` 是 `truecolor`／`24bit` 時以 24-bit 全彩顯示，否則自動換成最接近的 xterm-256 色 |
-| 分框版面 | process、搜尋、session 列表、預覽各自獨立成一個圓角框。需要 fzf ≥ 0.58（沒有的話 `brew upgrade fzf`）；版本較舊時自動退回單一邊框的 `classic` 版面，也可用 `CCR_LAYOUT=boxed`／`CCR_LAYOUT=classic` 強制指定。預覽框裡再依內容分成「對話」「Artifacts」「產生的檔案」「最後的 prompt」幾個小框，寬度 ≥ 100 欄時左右兩欄，較窄時由上而下 |
+| 分框版面 | process、搜尋、session 列表、預覽各自獨立成一個圓角框。需要 fzf ≥ 0.58（沒有的話 `brew upgrade fzf`）；版本較舊時自動退回單一邊框的 `classic` 版面，也可用 `CCR_LAYOUT=boxed`／`CCR_LAYOUT=classic` 強制指定。預覽框裡（兩種版面、任何 fzf 版本都有）再依內容分成「對話」「Artifacts」「產生的檔案」「最後的 prompt」幾個小框，寬度 ≥ 100 欄時左右兩欄，較窄時由上而下 |
 
 ### 日常使用
 

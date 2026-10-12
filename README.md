@@ -108,8 +108,8 @@ Control**. Use **`ccc`** to get **Claude Code + Codex** in one list.
   preview) sits in its own titled, rounded-border box. It needs fzf ≥ 0.58 —
   `brew upgrade fzf` if you're on an older version; older fzf gets a single-border
   `classic` layout instead. Force it either way with `CCR_LAYOUT=boxed` /
-  `CCR_LAYOUT=classic`. Inside the Preview box the content is split again into
-  titled blocks — Session, Artifacts, Files, Last prompt — side by side when the
+  `CCR_LAYOUT=classic`. Inside the Preview box (in either layout, on any fzf) the
+  content is split again into titled blocks — Session, Artifacts, Files, Last prompt — side by side when the
   pane is at least 100 columns wide, stacked otherwise.
 
 ### Everyday

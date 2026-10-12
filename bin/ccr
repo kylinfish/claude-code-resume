@@ -140,10 +140,6 @@ t() {
     en:codex_no_rc)  fmt='ccr: Codex has no Remote Control; use Enter (resume) or ^F (fork) instead' ;;
     zh:pv_codex)     fmt='🤖 Codex session · Enter = codex resume · ^F = codex fork' ;;
     en:pv_codex)     fmt='🤖 Codex session · Enter = codex resume · ^F = codex fork' ;;
-    zh:pv_arts)      fmt='🎨 Artifacts（%s）' ;;
-    en:pv_arts)      fmt='🎨 Artifacts (%s)' ;;
-    zh:pv_files)     fmt='📄 產生的檔案（%s）' ;;
-    en:pv_files)     fmt='📄 files written (%s)' ;;
     zh:pv_versions)  fmt='%s 版' ;;
     en:pv_versions)  fmt='%s versions' ;;
     zh:pv_version1)  fmt='%s 版' ;;
@@ -478,17 +474,14 @@ resume_codex() {
 }
 
 # ---------------------------------------------------------------------------
-# outputs_for <sid> <preview|pick> — a session's artifacts and files written,
+# outputs_for <sid> — a session's artifacts and files written as TSV rows
+#   url|path \t label   for the ^L picker (missing files are left out),
 # from the outputs-*.json the last scan wrote next to the index cache.
-#   preview: colored lines for the preview pane (nothing if there are none)
-#   pick:    TSV rows  url|path \t label  for ^L
 # ---------------------------------------------------------------------------
 outputs_for() {
-  python3 - "$PROJECTS_DIR" "$1" "${2:-preview}" \
-    "$(t pv_arts '%d')" "$(t pv_files '%d')" "$(t pv_versions '%d')" "$(t pane_more '%d')" \
-    "$(t pv_version1 '%d')" <<'PY'
+  python3 - "$PROJECTS_DIR" "$1" <<'PY'
 import sys, os, json, hashlib
-projects_dir, sid, mode, L_ARTS, L_FILES, L_VER, L_MORE, L_VER1 = sys.argv[1:9]
+projects_dir, sid = sys.argv[1:3]
 cache_home = os.environ.get("CCR_CACHE") or os.path.join(
     os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "ccr")
 f = os.path.join(cache_home, "outputs-" + hashlib.md5(projects_dir.encode("utf-8")).hexdigest()[:8] + ".json")
@@ -503,53 +496,18 @@ def short(p):
     if cwd and p.startswith(cwd + "/"):
         return "./" + p[len(cwd) + 1:]
     return "~" + p[len(home):] if p.startswith(home + "/") else p
-
-if mode == "pick":
-    for a in arts:
-        print(f"{a['url']}\t🎨 {a.get('title') or a['url']}  ({a['url']})")
-        if a.get("path") and os.path.exists(a["path"]):
-            print(f"{a['path']}\t   {short(a['path'])}")
-    for x in files:
-        if os.path.exists(x["path"]):
-            print(f"{x['path']}\t{x['kind']} {short(x['path'])}")
-    sys.exit(0)
-
-PAL = dict(kv.split("=", 1) for kv in os.environ.get("CCR_PALETTE", "").split("|") if "=" in kv)
-def C(role, style=""):
-    v = PAL.get(role)
-    if not v:
-        return ""
-    if v.startswith("!"):
-        return "\x1b[" + v[1:] + "m"
-    return "\x1b[" + (style + ";" if style else "") + v + "m"
-R = "\x1b[0m"
-KEY, TTL, URL, OK, GONE, DIM = C("key"), C("fg", "1"), C("url", "4"), C("ok"), C("bad"), C("dim")
-KIND = {"+": C("ok") + "+", "~": C("key") + "~", "-": C("bad") + "-"}
-def mark(p):
-    return f"{OK}✓{R}" if os.path.exists(p) else f"{GONE}✗{R}"
-if arts:
-    print(f"\n{KEY}{L_ARTS % len(arts)}{R}")
-    for a in arts[:5]:
-        when = (a.get("last") or "")[:10]
-        n = a.get("n", 1)
-        meta = " · ".join(b for b in ((L_VER1 if n == 1 else L_VER) % n, when) if b)
-        print(f"  {TTL}{a.get('title') or '(untitled)'}{R}  {DIM}{meta}{R}")
-        print(f"    {URL}{a['url']}{R}")
-        if a.get("path"):
-            print(f"    {DIM}{short(a['path'])}{R} {mark(a['path'])}")
-    if len(arts) > 5:
-        print(L_MORE % (len(arts) - 5))
-if files:
-    print(f"\n{KEY}{L_FILES % len(files)}{R}")
-    for x in files[:8]:
-        print(f"  {KIND.get(x['kind'], x['kind'])}{R} {short(x['path'])} {mark(x['path'])}")
-    if len(files) > 8:
-        print(L_MORE % (len(files) - 8))
+for a in arts:
+    print(f"{a['url']}\t🎨 {a.get('title') or a['url']}  ({a['url']})")
+    if a.get("path") and os.path.exists(a["path"]):
+        print(f"{a['path']}\t   {short(a['path'])}")
+for x in files:
+    if os.path.exists(x["path"]):
+        print(f"{x['path']}\t{x['kind']} {short(x['path'])}")
 PY
 }
 
 # ---------------------------------------------------------------------------
-# preview_boxed <preview args…> — the boxed layout's preview: one rounded,
+# preview_boxed <preview args…> — the preview (both layouts): one rounded,
 # titled block per kind of content (session / artifacts / files / prompt),
 # drawn inside fzf's Preview pane. Two columns when the pane is ≥ 100 wide
 # (session + prompt left, artifacts + files right), otherwise stacked.
@@ -746,41 +704,11 @@ open_target() {
 # preview subcommand: invoked by fzf with the highlighted row's fields
 #   $1 title  $2 when(human)  $3 rel  $4 cwd  $5 last_prompt  $6 sessionId
 #   $7 kind  $8 target  $9 extra   (see scan for the meaning of the last three)
+# Drawn as content blocks (preview_boxed) in both layouts — ccr draws them
+# itself, so they need no particular fzf version.
 # ---------------------------------------------------------------------------
 do_preview() {
-  local title="${1:-}" when="${2:-}" rel="${3:-}" cwd="${4:-}" last="${5:-}" sid="${6:-}"
-  local kind="${7:-cli}" target="${8:-}" extra="${9:-}"
-  # the boxed layout draws content blocks inside the Preview pane
-  if [ "${CCR_LAYOUT_ACTIVE:-}" = boxed ]; then preview_boxed "$@"; return 0; fi
-  local C_RESET=$'\033[0m' C_TITLE C_DIM C_WARN C_KEY C_DESK C_CODEX
-  C_TITLE="$(pal accent 1)"; C_DIM="$(pal dim)"; C_WARN="$(pal bad 1)"
-  C_KEY="$(pal key)"; C_DESK="$(pal desktop)"; C_CODEX="$(pal codex)"
-  printf '%s📌 %s%s\n\n' "$C_TITLE" "$title" "$C_RESET"
-  printf '%s🕒%s %s  %s(%s)%s\n' "$C_KEY" "$C_RESET" "$when" "$C_DIM" "$rel" "$C_RESET"
-  if [ "$kind" = expired ]; then
-    printf '%s%s%s\n' "$C_WARN" "$(t pv_expired)" "$C_RESET"
-    printf '%s📁%s %s\n%s🔑%s %s\n' "$C_KEY" "$C_RESET" "$cwd" "$C_KEY" "$C_RESET" "$sid"
-    [ -n "$extra" ] && printf '\n%s%s%s\n%s\n' "$C_KEY" "$(t pv_first)" "$C_RESET" "$extra"
-    return 0
-  fi
-  if [ "$kind" = codex ]; then
-    printf '%s%s%s\n' "$C_CODEX" "$(t pv_codex)" "$C_RESET"
-    [ -n "$extra" ] && printf '%s🌿%s %s\n' "$C_KEY" "$C_RESET" "$extra"
-  fi
-  if [ "$kind" = desktop ]; then
-    printf '%s%s%s\n' "$C_DESK" "$(t pv_desktop)" "$C_RESET"
-    [ -n "$extra" ] && printf '%s%s%s %s\n' "$C_KEY" "$(t pv_folders)" "$C_RESET" "$extra"
-  fi
-  if [ -n "$cwd" ] && [ ! -d "$cwd" ]; then
-    printf '%s📁 %s  %s%s\n' "$C_WARN" "$cwd" "$(t pv_missing)" "$C_RESET"
-  else
-    printf '%s📁%s %s\n' "$C_KEY" "$C_RESET" "$cwd"
-  fi
-  printf '%s🔑%s %s\n' "$C_KEY" "$C_RESET" "$sid"
-  outputs_for "$sid" preview
-  if [ -n "$last" ]; then
-    printf '\n%s%s%s\n%s\n' "$C_KEY" "$(t pv_last)" "$C_RESET" "$last"
-  fi
+  preview_boxed "$@"
 }
 
 # ---------------------------------------------------------------------------
@@ -1685,7 +1613,7 @@ if [ "$LAYOUT" = boxed ]; then
 else
   LAYOUT_ARGS+=(--border=rounded --border-label=" $PROG " --border-label-pos=3
     --header-first --header="$HEADER" --prompt="[$SORT] ❯ "
-    --preview-label="$(t preview_label)" --preview-window='down,45%,wrap,border-top'
+    --preview-label="$(t preview_label)" --preview-window='down,45%,border-top'
     --bind 'ctrl-t:reload("$CCR_SELF" __list time)+change-prompt([time] ❯ )'
     --bind 'ctrl-o:reload("$CCR_SELF" __list title)+change-prompt([title] ❯ )'
     --bind 'ctrl-g:reload("$CCR_SELF" __list dir)+change-prompt([dir] ❯ )')
@@ -1721,7 +1649,7 @@ EXTRA="$(printf '%s' "$LINE" | cut -d"$TAB" -f10)"
 
 # ^L: open one of the session's artifacts / files written
 if [ "$KEY" = ctrl-l ]; then
-  ITEMS="$(outputs_for "$SID" pick)"
+  ITEMS="$(outputs_for "$SID")"
   [ -n "$ITEMS" ] || { echo "$(t no_outputs)" >&2; exit 1; }
   if [ "$(printf '%s\n' "$ITEMS" | wc -l | tr -d ' ')" -gt 1 ]; then
     PICK_ARGS=(--delimiter="$TAB" --with-nth=2 --reverse --height=40% --prompt="$(t pick_output)")
