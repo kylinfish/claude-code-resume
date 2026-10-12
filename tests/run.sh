@@ -109,6 +109,7 @@ EOF
 # fzf: record args + input; answer with $FAKE_KEY and the first row matching $FAKE_PICK
 cat > "$F/bin/fzf" <<'EOF'
 #!/bin/sh
+case "$1" in --version) echo "${FAKE_FZF_VERSION:-0.57.0} (fake)"; exit 0 ;; esac
 for a in "$@"; do printf '%s\n' "$a"; done > "$FZF_ARGS"
 cat > "$FZF_DUMP"
 case " $* " in *--expect*) printf '%s\n' "$FAKE_KEY" ;; esac
@@ -147,7 +148,8 @@ chmod +x "$F"/bin/*
 
 export PATH="$F/bin:$PATH" CLAUDE_CONFIG_DIR="$F/cfg" CCR_DESKTOP_DIR="$F/desk" CCR_CACHE="$F/cache"
 export CODEX_HOME="$F/codex" FZF_DUMP="$F/dump" FZF_ARGS="$F/args" CCR_LANG=zh
-unset CCR_CODEX CCR_PROJECTS_DIR CCR_HISTORY_FILE
+export CCR_THEME=classic FAKE_FZF_VERSION=0.57.0
+unset CCR_CODEX CCR_PROJECTS_DIR CCR_HISTORY_FILE COLORTERM CCR_PALETTE CCR_LAYOUT
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -246,6 +248,20 @@ CCR_STATE="$S" "$SH" "$CCC" __cycle_source
 hasnt "source: claude"    "$(CCR_STATE="$S" "$SH" "$CCC" __list | cut -f8)" "codex"
 CCR_STATE="$S" "$SH" "$CCC" __cycle_source
 has  "source: codex"      "$(CCR_STATE="$S" "$SH" "$CCC" __list | cut -f8 | sort -u | tr '\n' ' ')" "codex "; rm -f "$S"
+
+# ---------------------------------------------------------------------------
+# themes
+# ---------------------------------------------------------------------------
+claude_tag() { CCR_THEME="$1" COLORTERM="${2:-}" "$SH" "$CCC" __list time | grep aaaa-live | cut -f1; }
+has   "tokyonight truecolor"  "$(claude_tag tokyonight truecolor)" $'\033[38;2;255;158;100mclaude'
+hasnt "truecolor has no 256"  "$(claude_tag tokyonight truecolor)" $'\033[38;5;'
+has   "256 fallback"          "$(claude_tag tokyonight)" $'\033[38;5;215mclaude'
+hasnt "256 has no truecolor"  "$(claude_tag tokyonight)" $'\033[38;2;'
+has   "classic codes"         "$(claude_tag classic truecolor)" $'\033[38;5;173mclaude'
+has   "default is tokyonight" "$(CCR_THEME= COLORTERM=truecolor "$SH" "$CCC" __list time | grep aaaa-live | cut -f1)" $'\033[38;2;255;158;100m'
+has   "--theme beats env"     "$(CCR_THEME=kanagawa COLORTERM=truecolor run ctrl-y aaaa-live "$CCC" --theme gruvbox >/dev/null; grep aaaa-live "$F/dump" | cut -f1)" $'\033[38;2;254;128;25mclaude'
+has   "unknown theme warns"   "$(CCR_THEME=nope run ctrl-y aaaa-live "$CCR" 2>&1)" "未知的主題「nope」"
+has   "subcommand w/o palette" "$(CCR_PALETTE= CCR_THEME=tokyonight COLORTERM=truecolor "$SH" "$CCR" __list time | grep aaaa-live | cut -f1)" $'\033[38;2;'
 
 echo "pass=$pass fail=$fail"
 [ "$fail" = 0 ]
