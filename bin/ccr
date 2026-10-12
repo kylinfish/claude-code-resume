@@ -1478,6 +1478,9 @@ if [ "$LAYOUT" = boxed ]; then
     --bind 'ctrl-t:execute-silent("$CCR_SELF" __set_sort time)+reload("$CCR_SELF" __list)+transform-input-label("$CCR_SELF" __label)'
     --bind 'ctrl-o:execute-silent("$CCR_SELF" __set_sort title)+reload("$CCR_SELF" __list)+transform-input-label("$CCR_SELF" __label)'
     --bind 'ctrl-g:execute-silent("$CCR_SELF" __set_sort dir)+reload("$CCR_SELF" __list)+transform-input-label("$CCR_SELF" __label)')
+  # --style=full defaults every section (incl. the footer) to a border; override
+  # the footer back to borderless after the preset, since later flags win.
+  [ "$FZF_HAS_FOOTER" = 1 ] && LAYOUT_ARGS+=(--footer-border=none)
   [ "$CODEX_MODE" = 1 ] && SOURCE_BIND=(--bind 'ctrl-a:execute-silent("$CCR_SELF" __cycle_source)+reload("$CCR_SELF" __list)+transform-input-label("$CCR_SELF" __label)')
 else
   LAYOUT_ARGS+=(--border=rounded --border-label=" $PROG " --border-label-pos=3
