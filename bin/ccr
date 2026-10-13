@@ -22,6 +22,7 @@
 #   ccr --themes             Pick a theme with a live preview and save it
 #   ccr -h|--help            Show help
 #   ccr -V|--version         Show the version
+#   ccr --update             Update this install (git pull) and show what changed
 #
 # In-menu keys:
 #   Enter   resume
@@ -191,6 +192,14 @@ t() {
     en:themes_hint)  fmt='Enter save  ^Y print export  Esc quit' ;;
     zh:theme_saved)  fmt='✔ 主題已設為 %s（已存到 %s）' ;;
     en:theme_saved)  fmt='✔ Theme set to %s (saved to %s)' ;;
+    zh:update_not_git) fmt='ccr：%s 不是 git 安裝的目錄；請重新下載，或手動更新' ;;
+    en:update_not_git) fmt='ccr: %s is not a git checkout; download it again or update it by hand' ;;
+    zh:update_failed) fmt='ccr：更新失敗。到 %s 執行 git status，確認是否有本機修改，處理後再 git pull' ;;
+    en:update_failed) fmt='ccr: update failed. Run git status in %s (local changes?), then git pull' ;;
+    zh:update_uptodate) fmt='✔ 已是最新版（%s）' ;;
+    en:update_uptodate) fmt='✔ Already up to date (%s)' ;;
+    zh:update_done)  fmt='✔ %s %s → %s，更新內容：' ;;
+    en:update_done)  fmt='✔ %s %s → %s. What changed:' ;;
     *)               fmt="$k" ;;
   esac
   # messages say whichever name we were run as (ccr / ccc)
@@ -254,6 +263,7 @@ ccr — Claude Code Resume
   ccr --themes             主題選擇器：即時預覽，Enter 套用並存到 ~/.config/ccr/theme
   ccr -h|--help            顯示說明
   ccr -V|--version         顯示版本
+  ccr --update             更新（git pull）並列出新版內容
 
 選單內快捷鍵：
   Enter   開啟（resume）
@@ -300,6 +310,7 @@ Usage:
   ccr --themes             Theme picker with a live preview; Enter saves to ~/.config/ccr/theme
   ccr -h|--help            Show this help
   ccr -V|--version         Show the version
+  ccr --update             Update this install (git pull) and show what changed
 
 In-menu keys:
   Enter   resume
@@ -439,6 +450,33 @@ pal() {
 pill() {
   local b; b="$(pal "bg_$1")"
   if [ -n "$b" ]; then printf '%s%s%s\033[0m' "$b" "$(pal bg 1)" "$2"; else printf '%s' "$2"; fi
+}
+
+# do_update — ccr --update: git pull the checkout this script lives in (the
+# installed command is a symlink into it), then print the CHANGELOG sections
+# between the old and the new version.
+do_update() {
+  local real dir new
+  real="$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$0")"
+  dir="$(cd "$(dirname "$real")/.." && pwd)"
+  # must be the root of a checkout (empty prefix), not just a folder inside
+  # some other repo; --show-prefix also sidesteps path case differences
+  local prefix
+  if ! prefix="$(git -C "$dir" rev-parse --show-prefix 2>/dev/null)" || [ -n "$prefix" ]; then
+    echo "$(t update_not_git "${dir/#$HOME/~}")" >&2; return 1
+  fi
+  echo "→ git -C ${dir/#$HOME/~} pull --ff-only"
+  if ! git -C "$dir" pull --ff-only; then
+    echo "$(t update_failed "${dir/#$HOME/~}")" >&2; return 1
+  fi
+  new="$(sed -n 's/^VERSION="\(.*\)"$/\1/p' "$real")"
+  if [ "$new" = "$VERSION" ]; then
+    echo "$(t update_uptodate "$VERSION")"; return 0
+  fi
+  echo "$(t update_done "$PROG" "$VERSION" "$new")"
+  if [ -f "$dir/CHANGELOG.md" ]; then
+    awk -v n="## [$new]" -v o="## [$VERSION]" 'index($0, o) == 1 { exit } index($0, n) == 1 { p = 1 } p' "$dir/CHANGELOG.md"
+  fi
 }
 
 # ver_ge <version> <major.minor> -> success when version >= major.minor
@@ -1582,6 +1620,7 @@ case "${1:-}" in
     exit 0 ;;
   -h|--help) print_help; exit 0 ;;
   -V|--version) printf '%s %s\n' "$(basename "$0")" "$VERSION"; exit 0 ;;
+  --update)  if do_update; then exit 0; else exit 1; fi ;;
 esac
 
 command -v fzf     >/dev/null 2>&1 || { echo "$(t need_fzf)"    >&2; exit 1; }

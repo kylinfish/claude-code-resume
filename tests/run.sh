@@ -413,5 +413,39 @@ same  "block: tinted fits"     "$(printf '%s\n' "$TPV" | maxw)" "120"
 hasnt "block: classic no tint" "$(CCR_PALETTE= bpv 120 t w r "$P" "hello live" aaaa-live cli "" "")" $'48;'
 has   "sample: pills"          "$(COLORTERM=truecolor FZF_PREVIEW_COLUMNS=90 "$SH" "$CCR" __theme_sample tokyonight)" $'48;2;255;158;100m'
 
+# ---------------------------------------------------------------------------
+# ccr --update: git pull the checkout the installed symlink points into
+# ---------------------------------------------------------------------------
+U="$F/upd"; mkdir -p "$U"
+git init -q --bare "$U/origin.git"
+git -C "$ROOT" archive --format=tar HEAD bin CHANGELOG.md | (mkdir -p "$U/seed" && tar -x -C "$U/seed")
+cp "$CCR" "$U/seed/bin/ccr"   # the working-tree version under test
+( cd "$U/seed" && git init -q && git add . && git -c user.name=t -c user.email=t@t commit -q -m seed \
+  && git push -q "$U/origin.git" HEAD:main ) 2>/dev/null
+git clone -q -b main "$U/origin.git" "$U/user" 2>/dev/null
+mkdir -p "$U/bin"; ln -s "$U/user/bin/ccr" "$U/bin/ccr"; ln -s "$U/user/bin/ccr" "$U/bin/ccc"
+OLDV="$(sed -n 's/^VERSION="\(.*\)"$/\1/p' "$U/user/bin/ccr")"
+has   "update: up to date"   "$("$SH" "$U/bin/ccr" --update 2>&1)" "已是最新版（${OLDV}）"
+# publish 9.9.9 upstream
+( cd "$U/seed" && sed -i.bak 's/^VERSION=".*"$/VERSION="9.9.9"/' bin/ccr && rm -f bin/ccr.bak \
+  && python3 - <<'PY'
+s = open("CHANGELOG.md").read()
+s = s.replace("## [Unreleased]\n", "## [Unreleased]\n\n## [9.9.9] - 2099-01-01\n\n### Added\n- 自我更新的測試條目\n", 1)
+open("CHANGELOG.md", "w").write(s)
+PY
+  git -c user.name=t -c user.email=t@t commit -qam "release 9.9.9" && git push -q "$U/origin.git" HEAD:main ) 2>/dev/null
+OUT="$("$SH" "$U/bin/ccc" --update 2>&1)"
+has   "update: version jump" "$OUT" "ccc $OLDV → 9.9.9"
+has   "update: changelog"    "$OUT" "自我更新的測試條目"
+hasnt "update: no old notes" "$OUT" "## [$OLDV]"
+same  "update: pulled"       "$(sed -n 's/^VERSION="\(.*\)"$/\1/p' "$U/user/bin/ccr")" "9.9.9"
+echo "local edit" >> "$U/user/CHANGELOG.md"
+( cd "$U/seed" && echo "x" >> CHANGELOG.md && git -c user.name=t -c user.email=t@t commit -qam more && git push -q "$U/origin.git" HEAD:main ) 2>/dev/null
+OUT="$("$SH" "$U/bin/ccr" --update 2>&1)"; RC=$?
+has   "update: pull fails"   "$OUT" "更新失敗"
+same  "update: fail rc"      "$RC" "1"
+mkdir -p "$U/plain"; cp "$CCR" "$U/plain/ccr"
+has   "update: not git"      "$("$SH" "$U/plain/ccr" --update 2>&1)" "不是 git"
+
 echo "pass=$pass fail=$fail"
 [ "$fail" = 0 ]
