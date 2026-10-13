@@ -101,6 +101,8 @@ Control**. Use **`ccc`** to get **Claude Code + Codex** in one list.
 - **Five themes** — `tokyonight` (default), `catppuccin`, `kanagawa`, `gruvbox`,
   and `classic` (the pre-0.6 look). Pick one with `ccr --theme gruvbox` or
   `CCR_THEME=catppuccin ccr` (`--theme` wins if both are set).
+- **Colour blocks** — section titles are filled pill badges and each preview
+  block has a faint tint of its colour (`classic` stays plain).
 - **Theme picker** — `ccr --themes` lists the themes with a live preview: a small
   ccr screen (processes, sessions, preview blocks) drawn in the highlighted
   theme, on its own background. `Enter` saves the choice to
