@@ -101,6 +101,11 @@ Control**. Use **`ccc`** to get **Claude Code + Codex** in one list.
 - **Five themes** — `tokyonight` (default), `catppuccin`, `kanagawa`, `gruvbox`,
   and `classic` (the pre-0.6 look). Pick one with `ccr --theme gruvbox` or
   `CCR_THEME=catppuccin ccr` (`--theme` wins if both are set).
+- **Theme picker** — `ccr --themes` lists the themes with a live preview: a small
+  ccr screen (processes, sessions, preview blocks) drawn in the highlighted
+  theme, on its own background. `Enter` saves the choice to
+  `~/.config/ccr/theme` (`$XDG_CONFIG_HOME/ccr/theme`); `Ctrl-Y` only prints
+  `export CCR_THEME=…`. Order: `--theme` > `CCR_THEME` > saved theme > `tokyonight`.
 - **Truecolor, with a 256-color fallback** — themes render in full 24-bit color
   when `$COLORTERM` is `truecolor` / `24bit`, and fall back to the nearest
   xterm-256 color otherwise.
@@ -154,6 +159,7 @@ ccr --expired            # also list sessions Claude has already cleaned up
 ccr -s title             # sort by title  (time | title | dir)
 ccr --lang zh            # force Chinese UI (default: auto-detect from $LANG)
 ccr --theme gruvbox      # tokyonight (default) | catppuccin | kanagawa | gruvbox | classic
+ccr --themes             # pick a theme with a live preview and save it
 ccr --version            # print the version
 ccr --help
 ```
@@ -213,7 +219,7 @@ claude │   1d ago │    Teach the team Claude Desktop features  │ Desktop �
 | `CCR_CACHE`         | override the index cache dir (default `~/.cache/ccr`)            |
 | `CCR_DESKTOP_DIR`   | override the Claude Desktop Cowork sessions dir                  |
 | `CCR_HISTORY_FILE`  | override the prompt history file (default `~/.claude/history.jsonl`) |
-| `CCR_THEME`         | theme: `tokyonight` (default), `catppuccin`, `kanagawa`, `gruvbox`, `classic` |
+| `CCR_THEME`         | theme: `tokyonight` (default), `catppuccin`, `kanagawa`, `gruvbox`, `classic`; overrides the one saved by `ccr --themes` |
 | `CCR_LAYOUT`        | `boxed` or `classic` (default: `boxed` on fzf ≥ 0.58, else `classic`) |
 | `CODEX_HOME`        | `ccc`: Codex's home dir (default `~/.codex`)                     |
 | `CCR_CODEX`         | `1` turns on Codex sessions when running as `ccr`                |

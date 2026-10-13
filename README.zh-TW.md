@@ -112,6 +112,7 @@
 | 功能 | 說明 |
 | ---- | ---- |
 | 五種主題 | `tokyonight`（預設）、`catppuccin`、`kanagawa`、`gruvbox`、`classic`（0.6 以前的配色）。用 `ccr --theme gruvbox` 或 `CCR_THEME=catppuccin ccr` 切換（兩者都設定時 `--theme` 優先） |
+| 主題選擇器 | `ccr --themes` 列出所有主題並即時預覽：右邊用目前選到的主題（含背景色）畫出縮小版的 ccr 畫面。`Enter` 套用並存到 `~/.config/ccr/theme`（`$XDG_CONFIG_HOME/ccr/theme`）；`Ctrl-Y` 只印出 `export CCR_THEME=…`。優先順序：`--theme` > `CCR_THEME` > 存下的主題 > `tokyonight` |
 | Truecolor，可退回 256 色 | `$COLORTERM` 是 `truecolor`／`24bit` 時以 24-bit 全彩顯示，否則自動換成最接近的 xterm-256 色 |
 | 分框版面 | process、搜尋、session 列表、預覽各自獨立成一個圓角框。需要 fzf ≥ 0.58（沒有的話 `brew upgrade fzf`）；版本較舊時自動退回單一邊框的 `classic` 版面，也可用 `CCR_LAYOUT=boxed`／`CCR_LAYOUT=classic` 強制指定。預覽框裡（兩種版面、任何 fzf 版本都有）再依內容分成「對話」「Artifacts」「產生的檔案」「最後的 prompt」幾個小框，寬度 ≥ 100 欄時左右兩欄，較窄時由上而下 |
 
@@ -160,6 +161,7 @@ cd claude-code-resume
 | `ccr -s title` | 依標題排序（`time`｜`title`｜`dir`） |
 | `ccr --lang zh` | 強制中文介面（預設依 `$LANG` 自動偵測） |
 | `ccr --theme gruvbox` | 切換主題（`tokyonight`（預設）｜`catppuccin`｜`kanagawa`｜`gruvbox`｜`classic`） |
+| `ccr --themes` | 主題選擇器：即時預覽，Enter 套用並儲存 |
 | `ccr --version` | 顯示版本 |
 | `ccr --help` | 顯示說明 |
 
@@ -218,7 +220,7 @@ claude │     1 天前 │    教團隊用 Claude Desktop                 │ D
 | `CCR_CACHE` | 覆寫索引快取目錄（預設 `~/.cache/ccr`） |
 | `CCR_DESKTOP_DIR` | 覆寫 Claude Desktop Cowork 對話的路徑 |
 | `CCR_HISTORY_FILE` | 覆寫 prompt 歷史檔（預設 `~/.claude/history.jsonl`） |
-| `CCR_THEME` | 主題：`tokyonight`（預設）、`catppuccin`、`kanagawa`、`gruvbox`、`classic` |
+| `CCR_THEME` | 主題：`tokyonight`（預設）、`catppuccin`、`kanagawa`、`gruvbox`、`classic`；會蓋過 `ccr --themes` 存下的主題 |
 | `CCR_LAYOUT` | `boxed` 或 `classic`（預設：fzf ≥ 0.58 用 `boxed`，否則 `classic`） |
 | `CODEX_HOME` | `ccc`：Codex 的目錄（預設 `~/.codex`） |
 | `CCR_CODEX` | 設為 `1` 時，以 `ccr` 執行也會列出 Codex session |
