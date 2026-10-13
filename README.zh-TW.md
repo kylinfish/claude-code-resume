@@ -22,7 +22,7 @@
 用 **`ccc`** 可以把 **Claude Code + Codex** 放在同一個列表。
 
 <p align="center">
-  <img src="assets/demo.gif" width="820" alt="ccr 操作示範：模糊搜尋、預覽、resume">
+  <img src="assets/demo-zh.gif" width="820" alt="ccr 操作示範：模糊搜尋、預覽、resume">
 </p>
 
 ```

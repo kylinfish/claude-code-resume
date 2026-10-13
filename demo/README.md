@@ -18,6 +18,13 @@ CCR_DESKTOP_DIR CCR_CACHE`) to get your real sessions back.
 Use `CCR_THEME=catppuccin ccc` (or `--theme`) to record another theme; the
 boxed layout needs fzf ≥ 0.58.
 
+### Automated recording
+
+`demo/record.sh` does the whole thing with [vhs](https://github.com/charmbracelet/vhs)
+(`brew install vhs`): it runs `setup.sh`, records `assets/demo.gif` (English) and
+`assets/demo-zh.gif` (中文) from the same scripted tape, then runs `teardown.sh`.
+Set `CCR_DEMO_SHOTS=<dir>` to also save PNG screenshots of the key frames.
+
 ## What's in it
 
 | Kind | Count | Notes |
@@ -62,3 +69,9 @@ are taken.
 4. `demo/teardown.sh`：關掉 demo process 並刪除 `~/ccr-demo`；之後開新的終端機，就會回到你真正的 session。
 
 用 `CCR_THEME=catppuccin ccc`（或 `--theme`）可以錄另一種主題；分框版面需要 fzf ≥ 0.58。
+
+### 自動錄影
+
+`demo/record.sh` 用 [vhs](https://github.com/charmbracelet/vhs)（`brew install vhs`）一次完成：
+先跑 `setup.sh`，用同一份腳本錄出 `assets/demo.gif`（英文）與 `assets/demo-zh.gif`（中文），最後跑 `teardown.sh`。
+設定 `CCR_DEMO_SHOTS=<目錄>` 會另外存下關鍵畫面的 PNG 截圖。
