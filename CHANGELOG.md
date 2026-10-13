@@ -81,11 +81,11 @@ Initial release.
 - Scan-path resolution: `CCR_PROJECTS_DIR` → `$CLAUDE_CONFIG_DIR/projects` → `~/.claude/projects`.
 - Installer (`install.sh`, with optional `--tip` shell hint), SVG banner + logo, and a bilingual README.
 
-[Unreleased]: https://github.com/kylinfish/claude-code-resume/compare/v0.6.1...HEAD
-[0.6.1]: https://github.com/kylinfish/claude-code-resume/compare/v0.6.0...v0.6.1
-[0.6.0]: https://github.com/kylinfish/claude-code-resume/compare/v0.5.0...v0.6.0
-[0.5.0]: https://github.com/kylinfish/claude-code-resume/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/kylinfish/claude-code-resume/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/kylinfish/claude-code-resume/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/kylinfish/claude-code-resume/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/kylinfish/claude-code-resume/releases/tag/v0.1.0
+[Unreleased]: https://github.com/kylinfish/coding-agent-console/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/kylinfish/coding-agent-console/compare/v0.6.0...v0.6.1
+[0.6.0]: https://github.com/kylinfish/coding-agent-console/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/kylinfish/coding-agent-console/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/kylinfish/coding-agent-console/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/kylinfish/coding-agent-console/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/kylinfish/coding-agent-console/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/kylinfish/coding-agent-console/releases/tag/v0.1.0

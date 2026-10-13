@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# ccr — Claude Code Resume
+# ccr — Coding-agent Console & Resume (ccc adds Codex)
 # Browse all Claude Code sessions across every project, pick one in an fzf
 # menu (with preview), then auto-cd into its working directory and resume.
 # Optionally enable mobile Remote Control on resume.
@@ -34,7 +34,7 @@
 #   Ctrl-T  sort by time     Ctrl-O sort by title     Ctrl-G sort by dir
 #   Esc     quit
 #
-# MIT License — see the LICENSE file. https://github.com/kylinfish/claude-code-resume
+# MIT License — see the LICENSE file. https://github.com/kylinfish/coding-agent-console
 #
 set -euo pipefail
 
@@ -244,7 +244,7 @@ EOF
 print_help_body() {
   if [ "$LANG_MODE" = zh ]; then
     cat <<'EOF'
-ccr — Claude Code Resume
+ccr — Coding-agent Console & Resume
 
 掃描所有 Claude Code 歷史 session，用 fzf 選單 + preview 呈現，
 選定後自動 cd 到該專案目錄並 resume（可選擇開啟手機遠端控制）。
@@ -290,7 +290,7 @@ Desktop 裡的原對話不會變動。
 EOF
   else
     cat <<'EOF'
-ccr — Claude Code Resume
+ccr — Coding-agent Console & Resume
 
 Browse all Claude Code sessions across every project in an fzf menu
 (with preview), then auto-cd into the session's working directory and

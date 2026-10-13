@@ -1,10 +1,12 @@
 <p align="center">
-  <img src="assets/banner.svg" width="860" alt="ccr / ccc：Claude Code Resume，支援 Codex">
+  <img src="assets/banner.svg" width="860" alt="CCR — Coding-agent Console & Resume，支援 Claude Code 與 Codex">
 </p>
 
+<h3 align="center">CCR — Coding-agent Console &amp; Resume</h3>
+
 <p align="center">
-  <code>ccr</code>：跨專案搜尋並 resume Claude Code session 的模糊搜尋選單。<br>
-  <code>ccc</code>：同一個選單，再加上 OpenAI Codex 的 session。
+  <b>從 agent 停下的地方，無縫接續。</b><br>
+  <code>ccr</code>：你的 Claude Code session · <code>ccc</code>：Claude Code + Codex 同一個列表
 </p>
 
 <p align="center">
@@ -13,13 +15,25 @@
 
 ---
 
-`ccr` 讓你在一個模糊搜尋選單裡瀏覽**所有專案、所有 Claude Code 歷史對話**，
-看到每個 session 的摘要預覽，選定後自動 `cd` 到該專案目錄並 `claude --resume`，
-不必再手動記哪段對話在哪個資料夾。
+CCR 是給 coding agent 用的終端機控制台。跨所有專案模糊搜尋 Claude Code 或 Codex 的
+session，預覽它當時在做什麼、產出了什麼，選定後自動 `cd` 到專案目錄並
+`claude --resume`（或 `codex resume`）。
 
-除了 CLI 本身的 session，也會列出 **Claude Desktop（Cowork）** 的對話與已被 Claude
-**清理**的 session，顯示 **agent 留在背景的 port 與 watcher**，並可一鍵開啟**手機遠端控制**。
-用 **`ccc`** 可以把 **Claude Code + Codex** 放在同一個列表。
+## 為什麼用 CCR
+
+- **⚙ 一眼看到整個工作現場**：agent 啟動的 dev server、port 與 watcher 直接列在
+  session 列表上方，對應到所屬專案，附 CPU、記憶體與可點的 `localhost` 連結，
+  resume 時全局盡在眼前。
+- **🛟 每個 session 都找得到**：CCR 會告訴你 Claude 保留對話紀錄多久、怎麼延長，
+  `Ctrl-X` 還能列出已清理的 session 與它的第一句 prompt。
+- **🗂 一個列表，涵蓋所有來源**：Claude Code、Codex 與 Claude Desktop（Cowork）的
+  session 放在一起，各自標上工具；Desktop 對話可以分支到 CLI 繼續。
+- **✦ 清楚每個 session 的產出**：artifact 與 session 寫過的檔案以區塊呈現在預覽中，
+  `Ctrl-L` 直接開啟。
+- **🎨 打造你的風格**：`ccr --themes` 開啟即時主題選擇器，在真實的 CCR 畫面上瀏覽
+  Tokyo Night、Catppuccin、Kanagawa、Gruvbox 與 Classic，24-bit 全彩，按 `Enter` 儲存。
+
+全部只是一個 Bash 腳本加上 fzf：不需要常駐程式、不用編譯，`ccr --update` 一鍵更新。
 
 <p align="center">
   <img src="assets/demo-zh.gif" width="820" alt="ccr 操作示範：模糊搜尋、預覽、resume">
@@ -140,8 +154,8 @@
 ## 安裝
 
 ```sh
-git clone https://github.com/kylinfish/claude-code-resume.git
-cd claude-code-resume
+git clone https://github.com/kylinfish/coding-agent-console.git
+cd coding-agent-console
 ./install.sh          # 連結 bin/ccr 與 bin/ccc 到 ~/.local/bin
 ./install.sh --tip    # 另外在 shell 啟動時加一行提示
 ```
@@ -156,7 +170,8 @@ cd claude-code-resume
 ccr --update             # 0.6.1 起：自動 git pull 並列出新版內容
 ```
 
-如果還是 0.6.0 或更舊的版本，先手動更新一次，之後就能用 `--update`：
+如果還是 0.6.0 或更舊的版本，先在 clone 目錄手動更新一次（改名前 clone 的目錄仍叫
+`claude-code-resume`），之後就能用 `--update`：
 
 ```sh
 cd claude-code-resume && git pull

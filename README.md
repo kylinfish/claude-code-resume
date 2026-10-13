@@ -1,10 +1,12 @@
 <p align="center">
-  <img src="assets/banner.svg" width="860" alt="ccr / ccc — Claude Code Resume, with Codex">
+  <img src="assets/banner.svg" width="860" alt="CCR — Coding-agent Console & Resume, for Claude Code and Codex">
 </p>
 
+<h3 align="center">CCR — Coding-agent Console &amp; Resume</h3>
+
 <p align="center">
-  <code>ccr</code> — a fuzzy-search picker for resuming Claude Code sessions across every project.<br>
-  <code>ccc</code> — the same picker with your OpenAI Codex sessions in it too.
+  <b>Pick up exactly where your agents left off.</b><br>
+  <code>ccr</code> — your Claude Code sessions · <code>ccc</code> — Claude Code + Codex in one list
 </p>
 
 <p align="center">
@@ -13,15 +15,31 @@
 
 ---
 
-Browse **all your Claude Code sessions across every project** in a fuzzy-search
-menu, see a rich preview of each, then resume the one you want — `ccr` auto-`cd`s
-into the session's working directory and runs `claude --resume` for you. No more
-hunting for which folder a conversation lived in.
+CCR is a terminal console for your coding agents. Fuzzy-find any Claude Code or
+Codex session across every project, preview what it was doing and what it
+produced, then resume it — `ccr` cd's into the session's working directory and
+runs `claude --resume` (or `codex resume`) for you.
 
-Beyond the CLI's own sessions, it also lists **Claude Desktop (Cowork)**
-conversations and sessions Claude has already **cleaned up**, shows the **ports
-and watchers your agents left running**, and can resume with **mobile Remote
-Control**. Use **`ccc`** to get **Claude Code + Codex** in one list.
+## Why CCR
+
+- **⚙ See the whole workspace** — the dev servers, ports and watchers your
+  agents started sit right above the session list, matched to their projects,
+  with CPU, memory and a clickable `localhost` link. Resume with the full
+  picture in view.
+- **🛟 Keep every session within reach** — CCR tells you how long Claude keeps
+  transcripts and how to keep them longer, and `Ctrl-X` brings back the
+  sessions already cleaned up, with their first prompt.
+- **🗂 One list, every surface** — Claude Code, Codex and Claude Desktop
+  (Cowork) sessions together, each tagged by tool. Desktop conversations
+  continue in the CLI as a fork.
+- **✦ Know what each session produced** — artifacts and the files each session
+  wrote appear as blocks in the preview; `Ctrl-L` opens them.
+- **🎨 Make it yours** — `ccr --themes` opens a live theme picker: browse
+  Tokyo Night, Catppuccin, Kanagawa, Gruvbox and Classic on a real CCR screen,
+  in 24-bit color, and save with `Enter`.
+
+All of it is one Bash script plus fzf: no daemon, no build step, and
+`ccr --update` keeps it current.
 
 <p align="center">
   <img src="assets/demo.gif" width="820" alt="ccr in action — fuzzy-search, preview, and resume">
@@ -140,8 +158,8 @@ Control**. Use **`ccc`** to get **Claude Code + Codex** in one list.
 ## Install
 
 ```sh
-git clone https://github.com/kylinfish/claude-code-resume.git
-cd claude-code-resume
+git clone https://github.com/kylinfish/coding-agent-console.git
+cd coding-agent-console
 ./install.sh            # symlinks bin/ccr and bin/ccc into ~/.local/bin
 ./install.sh --tip      # also add a one-line startup hint to your shell rc
 ```
@@ -156,7 +174,8 @@ Or just drop `bin/ccr` anywhere on your `PATH` (and a `ccc` symlink to it if you
 ccr --update             # 0.6.1+: git pull the clone and show what changed
 ```
 
-On 0.6.0 or older, update once by hand — `--update` is available from then on:
+On 0.6.0 or older, update once by hand from your clone (cloned before the rename, it is still
+called `claude-code-resume`) — `--update` is available from then on:
 
 ```sh
 cd claude-code-resume && git pull
