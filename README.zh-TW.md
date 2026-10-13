@@ -148,6 +148,20 @@ cd claude-code-resume
 
 也可以直接把 `bin/ccr` 放到任何 `PATH` 目錄下（有用 Codex 的話再建一個指向它的 `ccc` symlink）。
 
+### 更新
+
+`install.sh` 是把指令連結到你 clone 下來的目錄，所以更新那份 clone 就等於更新 `ccr`：
+
+```sh
+ccr --update             # 0.6.1 起：自動 git pull 並列出新版內容
+```
+
+如果還是 0.6.0 或更舊的版本，先手動更新一次，之後就能用 `--update`：
+
+```sh
+cd claude-code-resume && git pull
+```
+
 ## 用法
 
 | 指令 | 作用 |
@@ -164,6 +178,7 @@ cd claude-code-resume
 | `ccr --theme gruvbox` | 切換主題（`tokyonight`（預設）｜`catppuccin`｜`kanagawa`｜`gruvbox`｜`classic`） |
 | `ccr --themes` | 主題選擇器：即時預覽，Enter 套用並儲存 |
 | `ccr --version` | 顯示版本 |
+| `ccr --update` | 更新（git pull）並列出新版內容 |
 | `ccr --help` | 顯示說明 |
 
 ### 選單內快捷鍵
@@ -246,6 +261,7 @@ claude │     1 天前 │    教團隊用 Claude Desktop                 │ D
 
 | 版本 | 重點 |
 | ---- | ---- |
+| [0.6.1](docs/releases/v0.6.1.md) | `ccr --update`：直接更新 git 安裝並列出新版內容 |
 | [0.6.0](docs/releases/v0.6.0.md) | 預設改用 Tokyo Night 主題，另外還有四種主題（`--theme`／`CCR_THEME`），fzf ≥ 0.58 的分框版面，舊版 fzf 自動退回有主題的 `classic` 版面 |
 | [0.5.0](docs/releases/v0.5.0.md) | 每個 session 的 artifact 與產生的檔案（`✦`、`Ctrl-L`）、process 區顯示改進、README 分語系、demo 資料、測試 |
 | [0.4.0](docs/releases/v0.4.0.md) | `ccc`：Claude Code 與 Codex 的 session 放在同一個選單，含 `claude`／`codex` 工具欄與 `Ctrl-A` 來源切換 |

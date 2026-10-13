@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-13
+
+### Added
+- `ccr --update` (also `ccc --update`): updates a git install in place — follows the installed symlink to the checkout, runs `git pull --ff-only`, and prints `ccr <old> → <new>` with the CHANGELOG sections in between (or "already up to date"). A copy that isn't the root of a git checkout, or a pull that fails (e.g. local changes), prints why and how to update by hand, and exits 1.
+
 ## [0.6.0] - 2026-10-12
 
 ### Added
@@ -76,7 +81,8 @@ Initial release.
 - Scan-path resolution: `CCR_PROJECTS_DIR` → `$CLAUDE_CONFIG_DIR/projects` → `~/.claude/projects`.
 - Installer (`install.sh`, with optional `--tip` shell hint), SVG banner + logo, and a bilingual README.
 
-[Unreleased]: https://github.com/kylinfish/claude-code-resume/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/kylinfish/claude-code-resume/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/kylinfish/claude-code-resume/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/kylinfish/claude-code-resume/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/kylinfish/claude-code-resume/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/kylinfish/claude-code-resume/compare/v0.3.0...v0.4.0

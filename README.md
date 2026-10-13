@@ -148,6 +148,20 @@ cd claude-code-resume
 
 Or just drop `bin/ccr` anywhere on your `PATH` (and a `ccc` symlink to it if you use Codex).
 
+### Updating
+
+`install.sh` links the command to your clone, so updating the clone updates `ccr`:
+
+```sh
+ccr --update             # 0.6.1+: git pull the clone and show what changed
+```
+
+On 0.6.0 or older, update once by hand — `--update` is available from then on:
+
+```sh
+cd claude-code-resume && git pull
+```
+
 ## Usage
 
 ```sh
@@ -163,6 +177,7 @@ ccr --lang zh            # force Chinese UI (default: auto-detect from $LANG)
 ccr --theme gruvbox      # tokyonight (default) | catppuccin | kanagawa | gruvbox | classic
 ccr --themes             # pick a theme with a live preview and save it
 ccr --version            # print the version
+ccr --update             # update (git pull) and show what changed
 ccr --help
 ```
 
@@ -276,6 +291,7 @@ hundreds of sessions.
 
 | Version | Highlights |
 | ------- | ---------- |
+| [0.6.1](docs/releases/v0.6.1.md) | `ccr --update`: update a git install in place and see what changed |
 | [0.6.0](docs/releases/v0.6.0.md) | Tokyo Night theme by default, four more palettes (`--theme` / `CCR_THEME`), boxed fzf layout on fzf ≥ 0.58 with a themed `classic` fallback |
 | [0.5.0](docs/releases/v0.5.0.md) | Artifacts and files written per session (`✦`, `Ctrl-L`), tidier process pane, split READMEs, demo data, tests |
 | [0.4.0](docs/releases/v0.4.0.md) | `ccc`: Claude Code + Codex sessions in one picker, with a `claude` / `codex` column and `Ctrl-A` source cycling |

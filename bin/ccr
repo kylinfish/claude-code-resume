@@ -38,7 +38,7 @@
 #
 set -euo pipefail
 
-VERSION="0.6.0"
+VERSION="0.6.1"
 
 CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 # ccr's own settings: the theme picked with --themes
