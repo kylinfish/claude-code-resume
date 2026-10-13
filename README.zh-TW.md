@@ -154,8 +154,8 @@ session，預覽它當時在做什麼、產出了什麼，選定後自動 `cd` �
 ## 安裝
 
 ```sh
-git clone https://github.com/kylinfish/coding-agent-console.git
-cd coding-agent-console
+git clone https://github.com/kylinfish/coding-agent-console-resume.git
+cd coding-agent-console-resume
 ./install.sh          # 連結 bin/ccr 與 bin/ccc 到 ~/.local/bin
 ./install.sh --tip    # 另外在 shell 啟動時加一行提示
 ```

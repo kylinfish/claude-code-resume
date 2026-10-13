@@ -34,7 +34,7 @@
 #   Ctrl-T  sort by time     Ctrl-O sort by title     Ctrl-G sort by dir
 #   Esc     quit
 #
-# MIT License — see the LICENSE file. https://github.com/kylinfish/coding-agent-console
+# MIT License — see the LICENSE file. https://github.com/kylinfish/coding-agent-console-resume
 #
 set -euo pipefail
 

@@ -158,8 +158,8 @@ All of it is one Bash script plus fzf: no daemon, no build step, and
 ## Install
 
 ```sh
-git clone https://github.com/kylinfish/coding-agent-console.git
-cd coding-agent-console
+git clone https://github.com/kylinfish/coding-agent-console-resume.git
+cd coding-agent-console-resume
 ./install.sh            # symlinks bin/ccr and bin/ccc into ~/.local/bin
 ./install.sh --tip      # also add a one-line startup hint to your shell rc
 ```
