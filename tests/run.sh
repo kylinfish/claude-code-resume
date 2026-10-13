@@ -152,6 +152,7 @@ chmod +x "$F"/bin/*
 export PATH="$F/bin:$PATH" CLAUDE_CONFIG_DIR="$F/cfg" CCR_DESKTOP_DIR="$F/desk" CCR_CACHE="$F/cache"
 export CODEX_HOME="$F/codex" FZF_DUMP="$F/dump" FZF_ARGS="$F/args" CCR_LANG=zh
 export CCR_THEME=classic FAKE_FZF_VERSION=0.57.0
+export XDG_CONFIG_HOME="$F/xdg"   # saved theme lives in $XDG_CONFIG_HOME/ccr/theme
 unset CCR_CODEX CCR_PROJECTS_DIR CCR_HISTORY_FILE COLORTERM CCR_PALETTE CCR_LAYOUT
 
 # ---------------------------------------------------------------------------
@@ -353,6 +354,41 @@ A="$(args_for 0.57.0 "$CCR")"
 hasnt "classic preview no wrap" "$(grep '^--preview-window=' "$F/args")" "wrap"
 A="$(args_for 0.74.4 "$CCR")"
 hasnt "boxed preview no wrap"   "$(grep '^--preview-window=' "$F/args")" "wrap"
+
+# ---------------------------------------------------------------------------
+# theme picker (ccr --themes) and the saved theme
+# ---------------------------------------------------------------------------
+SAVED="$F/xdg/ccr/theme"
+rm -f "$SAVED"
+OUT="$(FAKE_KEY= FAKE_PICK=gruvbox "$SH" "$CCR" --themes 2>&1)"
+has   "themes: lists all"      "$(cut -f1 "$F/dump" | tr '\n' ' ')" "tokyonight catppuccin kanagawa gruvbox classic "
+has   "themes: current marked" "$(grep '^classic' "$F/dump")" "✓"
+has   "themes: sample preview" "$(cat "$F/args")" "__theme_sample {1}"
+same  "themes: saved"          "$(cat "$SAVED" 2>/dev/null)" "gruvbox"
+has   "themes: says saved"     "$OUT" "主題已設為 gruvbox"
+has   "saved theme is default" "$(CCR_THEME= COLORTERM=truecolor "$SH" "$CCC" __list time | grep aaaa-live | cut -f1)" $'\033[38;2;254;128;25mclaude'
+has   "env beats saved theme"  "$(CCR_THEME=tokyonight COLORTERM=truecolor "$SH" "$CCC" __list time | grep aaaa-live | cut -f1)" $'\033[38;2;255;158;100mclaude'
+has   "--theme beats saved"    "$(CCR_THEME= COLORTERM=truecolor run ctrl-y aaaa-live "$CCC" --theme kanagawa >/dev/null; grep aaaa-live "$F/dump" | cut -f1)" $'\033[38;2;255;160;102mclaude'
+rm -f "$SAVED"
+OUT="$(FAKE_KEY=ctrl-y FAKE_PICK=kanagawa "$SH" "$CCR" --themes 2>&1)"
+has   "themes: ctrl-y export"  "$OUT" "export CCR_THEME=kanagawa"
+hasnt "themes: ctrl-y no save" "$(ls "$F/xdg/ccr" 2>/dev/null)" "theme"
+mkdir -p "$F/xdg/ccr"; echo bogus > "$SAVED"
+has   "bad saved theme warns"  "$(CCR_THEME= run ctrl-y aaaa-live "$CCR" 2>&1)" "未知的主題「bogus」"
+rm -f "$SAVED"
+SMP="$(COLORTERM=truecolor FZF_PREVIEW_COLUMNS=90 "$SH" "$CCR" __theme_sample gruvbox)"
+has   "sample: theme colours"  "$SMP" $'\033[38;2;254;128;25m'
+has   "sample: theme bg"       "$SMP" $'48;2;40;40;40'
+has   "sample: preview blocks" "$(printf '%s' "$SMP" | strip)" "╭ 📌 對話"
+same  "sample: fits width"     "$(printf '%s\n' "$SMP" | maxw)" "90"
+FAKE_FZF_VERSION=0.74.4 FAKE_KEY=ctrl-y FAKE_PICK=kanagawa "$SH" "$CCR" --themes >/dev/null 2>&1
+has   "themes: gutter on 0.66+" "$(cat "$F/args")" "--gutter= "
+FAKE_KEY=ctrl-y FAKE_PICK=kanagawa "$SH" "$CCR" --themes >/dev/null 2>&1
+hasnt "themes: no gutter <0.66" "$(cat "$F/args")" "--gutter"
+SROWS="$(FZF_PREVIEW_COLUMNS=90 "$SH" "$CCR" __theme_sample tokyonight | strip | grep -E '^ ?.(claude|codex )')"
+same  "sample: columns aligned"  "$(printf '%s\n' "$SROWS" | python3 -c 'import sys,unicodedata
+print(len({tuple(sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in x) for x in l.split("│")[:3]) for l in sys.stdin}))')" "1"
+hasnt "sample: classic no bg"  "$(FZF_PREVIEW_COLUMNS=90 "$SH" "$CCR" __theme_sample classic)" "48;"
 
 echo "pass=$pass fail=$fail"
 [ "$fail" = 0 ]

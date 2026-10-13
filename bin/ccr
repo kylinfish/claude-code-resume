@@ -19,6 +19,7 @@
 #   ccr -s|--sort <key>      Sort by: time (default) | title | dir
 #   ccr -l|--lang <zh|en>    UI language (default: auto-detect)
 #   ccr -t|--theme <name>    Theme: tokyonight (default) catppuccin kanagawa gruvbox classic
+#   ccr --themes             Pick a theme with a live preview and save it
 #   ccr -h|--help            Show help
 #   ccr -V|--version         Show the version
 #
@@ -39,6 +40,8 @@ set -euo pipefail
 VERSION="0.6.0"
 
 CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+# ccr's own settings: the theme picked with --themes
+THEME_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/ccr/theme"
 PROJECTS_DIR="${CCR_PROJECTS_DIR:-$CONFIG_DIR/projects}"
 HISTORY_FILE="${CCR_HISTORY_FILE:-$CONFIG_DIR/history.jsonl}"
 DESKTOP_DIR="${CCR_DESKTOP_DIR:-$HOME/Library/Application Support/Claude/local-agent-mode-sessions}"
@@ -182,6 +185,12 @@ t() {
     en:box_arts)     fmt='🎨 Artifacts · %s' ;;
     zh:box_files)    fmt='📄 產生的檔案 · %s' ;;
     en:box_files)    fmt='📄 Files · %s' ;;
+    zh:themes_label) fmt=' 🎨 主題 ' ;;
+    en:themes_label) fmt=' 🎨 Themes ' ;;
+    zh:themes_hint)  fmt='Enter 儲存  ^Y 印 export  Esc 取消' ;;
+    en:themes_hint)  fmt='Enter save  ^Y print export  Esc quit' ;;
+    zh:theme_saved)  fmt='✔ 主題已設為 %s（已存到 %s）' ;;
+    en:theme_saved)  fmt='✔ Theme set to %s (saved to %s)' ;;
     *)               fmt="$k" ;;
   esac
   # messages say whichever name we were run as (ccr / ccc)
@@ -242,6 +251,7 @@ ccr — Claude Code Resume
   ccr -s|--sort <key>      排序：time(預設) | title | dir
   ccr -l|--lang <zh|en>    介面語言（預設：自動偵測 $LANG）
   ccr -t|--theme <name>    主題：tokyonight(預設) catppuccin kanagawa gruvbox classic
+  ccr --themes             主題選擇器：即時預覽，Enter 套用並存到 ~/.config/ccr/theme
   ccr -h|--help            顯示說明
   ccr -V|--version         顯示版本
 
@@ -287,6 +297,7 @@ Usage:
   ccr -s|--sort <key>      Sort by: time (default) | title | dir
   ccr -l|--lang <zh|en>    UI language (default: auto-detect from $LANG)
   ccr -t|--theme <name>    Theme: tokyonight (default) catppuccin kanagawa gruvbox classic
+  ccr --themes             Theme picker with a live preview; Enter saves to ~/.config/ccr/theme
   ccr -h|--help            Show this help
   ccr -V|--version         Show the version
 
@@ -336,6 +347,12 @@ theme_palette() {
   set -- $vals
   local r
   for r in $roles; do printf '%s=%s\n' "$r" "$1"; shift; done
+}
+
+# saved_theme -> the theme saved by `ccr --themes` ('' if none)
+saved_theme() {
+  [ -f "$THEME_FILE" ] || return 0
+  head -n 1 "$THEME_FILE" | tr -d '[:space:]'
 }
 
 # resolve_theme <name> [warn] -> a valid theme name (default tokyonight)
@@ -515,7 +532,7 @@ PY
 # ---------------------------------------------------------------------------
 preview_boxed() {
   local missing=0
-  [ -n "${4:-}" ] && [ ! -d "${4:-}" ] && missing=1
+  [ -z "${CCR_SAMPLE:-}" ] && [ -n "${4:-}" ] && [ ! -d "${4:-}" ] && missing=1
   python3 - "$PROJECTS_DIR" "$missing" "$@" \
     "$(t box_session)" "$(t box_arts '%d')" "$(t box_files '%d')" "$(t pv_last)" "$(t pv_first)" \
     "$(t pv_versions '%d')" "$(t pv_version1 '%d')" "$(t pane_more '%d')" \
@@ -635,13 +652,21 @@ try:
         o = json.load(fh).get(sid) or {}
 except Exception:
     o = {}
+SAMPLE = bool(os.environ.get("CCR_SAMPLE"))   # theme picker: fixed demo outputs
+if SAMPLE:
+    o = {"cwd": "/sample", "arts": [{"title": "API 認證流程圖", "url": "https://claude.ai/code/artifact/0a17…",
+                                     "n": 3, "last": "2026-10-12"}],
+         "files": [{"path": "/sample/src/middleware/auth.ts", "kind": "+"},
+                   {"path": "/sample/src/old-auth.ts", "kind": "~"}]}
 arts, files, ocwd = o.get("arts") or [], o.get("files") or [], (o.get("cwd") or "").rstrip("/")
 def short(p):
     if ocwd and p.startswith(ocwd + "/"):
         return "./" + p[len(ocwd) + 1:]
     return tilde(p)
+def exists(p):
+    return "old-" not in p if SAMPLE else os.path.exists(p)
 def mark(p):
-    return ("✓", C("ok")) if os.path.exists(p) else ("✗", C("bad"))
+    return ("✓", C("ok")) if exists(p) else ("✗", C("bad"))
 
 art_lines = []
 for x in arts[:5]:
@@ -698,6 +723,87 @@ open_target() {
   command -v open >/dev/null 2>&1 || opener=xdg-open
   echo "$(t opening "$1")"
   "$opener" "$1"
+}
+
+# ---------------------------------------------------------------------------
+# theme picker (ccr --themes): the five themes on the left, a sample ccr
+# screen drawn in the highlighted theme on the right. Enter saves the choice
+# to $THEME_FILE; Ctrl-Y only prints the export line.
+# ---------------------------------------------------------------------------
+pick_theme() {
+  local n list="" idx=1 i=0 out key choice
+  for n in tokyonight catppuccin kanagawa gruvbox classic; do
+    i=$((i + 1))
+    if [ "$n" = "$THEME" ]; then list="$list$n$TAB$n ✓"$'\n'; idx=$i; else list="$list$n$TAB$n"$'\n'; fi
+  done
+  local args=(--delimiter="$TAB" --with-nth=2 --reverse --no-sort
+    --border=rounded --border-label="$(t themes_label)" --header="$(t themes_hint)" --prompt='❯ '
+    --expect=ctrl-y --bind "load:pos($idx)"
+    --preview="\"\$CCR_SELF\" __theme_sample {1}" --preview-window='right,75%,border-rounded')
+  choose_layout
+  [ "$FZF_HAS_GUTTER" = 1 ] && args+=(--gutter=' ' --pointer='▌' --highlight-line)
+  [ -n "$FZF_COLORS" ] && args+=(--color="$FZF_COLORS")
+  out="$(printf '%s' "$list" | fzf "${args[@]}")" || { echo "$(t cancelled)"; exit 0; }
+  key="$(printf '%s\n' "$out" | sed -n '1p')"
+  choice="$(printf '%s\n' "$out" | sed -n '2p' | cut -d"$TAB" -f1)"
+  [ -n "$choice" ] || { echo "$(t cancelled)"; exit 0; }
+  if [ "$key" = ctrl-y ]; then
+    printf 'export CCR_THEME=%s\n' "$choice"
+  else
+    mkdir -p "$(dirname "$THEME_FILE")"
+    printf '%s\n' "$choice" > "$THEME_FILE"
+    echo "$(t theme_saved "$choice" "${THEME_FILE/#$HOME/~}")"
+  fi
+}
+
+# theme_sample — a small ccr screen in the current palette (load it first),
+# painted on the theme's background and sized to the preview pane
+theme_sample() {
+  local w="${FZF_PREVIEW_COLUMNS:-80}" R=$'\033[0m'
+  # relative times, each padded to 8 display columns (CJK = 2)
+  local rel='just now' r9='  9m ago' r1d='  1d ago' r1mo=' 1mo ago'
+  [ "$LANG_MODE" = zh ] && { rel='    剛剛'; r9='9 分鐘前'; r1d='  1 天前'; r1mo='1 個月前'; }
+  local sep d; sep="$(pal sep)│$R"; d="$(pal dim)"
+  {
+    printf '%s%s%s\n' "$(pal t_proc 1)" "$(t proc_label 2)" "$R"
+    printf '  %s-    %s  %swebpack --watch %s  %s61.9%% CPU%s  %s~/payments%s\n' \
+      "$(pal port 1)" "$R" "$(pal fg 1)" "$R" "$(pal hot 1)" "$R" "$(pal dir)" "$R"
+    printf '  %s:5173%s  %svite --port 5173%s  %s 0.0%% CPU%s  %s~/acme-api%s  %s→ http://localhost:5173%s\n' \
+      "$(pal port 1)" "$R" "$(pal fg 1)" "$R" "$d" "$R" "$(pal dir)" "$R" "$(pal url 4)" "$R"
+    printf '%s%s%s\n' "$(pal t_search 1)" "$(t search_label time)" "$R"
+    printf '%s❯%s jwt\n' "$(pal accent 1)" "$R"
+    printf '%s%s%s\n' "$(pal t_list 1)" "$(t list_label)" "$R"
+    printf '%s▌%s%sclaude%s %s %s%s%s %s %s⚙%s%s✦%s %sAdd JWT auth to the API gateway%s %s %s~/acme-api%s\n' \
+      "$(pal accent 1)" "$R" "$(pal claude)" "$R" "$sep" "$(pal recent)" "$rel" "$R" "$sep" \
+      "$(pal gear)" "$R" "$(pal out)" "$R" "$(pal fg)" "$R" "$sep" "$(pal path)" "$R"
+    printf ' %scodex %s %s %s%s%s %s  %s✦%s %sFix the rate limiter           %s %s %s~/acme-api%s\n' \
+      "$(pal codex)" "$R" "$sep" "$(pal recent)" "$r9" "$R" "$sep" "$(pal out)" "$R" "$(pal fg)" "$R" "$sep" "$(pal path)" "$R"
+    printf ' %sclaude%s %s %s%s%s %s    %sTeach the team Claude Desktop  %s %s %sDesktop · ~/handbook%s\n' \
+      "$(pal claude)" "$R" "$sep" "$(pal week)" "$r1d" "$R" "$sep" "$(pal fg)" "$R" "$sep" "$(pal desktop)" "$R"
+    printf ' %sclaude │ %s │    Upgrade to Postgres 16          │ ~/infra ✗%s\n' "$(pal expired)" "$r1mo" "$R"
+    printf '%s\n' "$(pal t_preview 1)$(t preview_label)$R"
+    CCR_SAMPLE=1 FZF_PREVIEW_COLUMNS="$w" preview_boxed "Add JWT auth to the API gateway" "2026-10-12 14:08" \
+      "${rel#"${rel%%[! ]*}"}" "~/acme-api" "extract the token check into middleware" "0a1b2c3d-4e5f-6789" cli "" ""
+  } | python3 -c '
+import sys, os, re, unicodedata
+w = int(sys.argv[1])
+pal = dict(kv.split("=", 1) for kv in os.environ.get("CCR_PALETTE", "").split("|") if "=" in kv)
+bgv = pal.get("bg", "")
+bg = "\x1b[48" + bgv[2:] + "m" if bgv.startswith("38;") else ""   # 38;2;r;g;b -> 48;2;r;g;b
+tok = re.compile(r"\x1b\[[0-9;]*m|.", re.S)
+def cw(ch):
+    if unicodedata.combining(ch): return 0
+    return 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
+for line in sys.stdin.read().split("\n"):
+    out, used = bg, 0
+    for t in tok.findall(line):
+        if t.startswith("\x1b["):
+            out += t + (bg if t == "\x1b[0m" else "")
+        else:
+            if used + cw(t) > w: break
+            out += t; used += cw(t)
+    print(out + " " * (w - used) + ("\x1b[0m" if bg else ""))
+' "$w"
 }
 
 # ---------------------------------------------------------------------------
@@ -1421,7 +1527,7 @@ runtime_lines() {
 # ---------------------------------------------------------------------------
 # fzf-spawned subcommands inherit CCR_PALETTE; build it if they were run without
 case "${1:-}" in
-  __*) [ -n "${CCR_PALETTE:-}" ] || load_palette "$(resolve_theme "${CCR_THEME:-}")" ;;
+  __*) [ -n "${CCR_PALETTE:-}" ] || load_palette "$(resolve_theme "${CCR_THEME:-$(saved_theme)}")" ;;
 esac
 
 case "${1:-}" in
@@ -1442,6 +1548,8 @@ case "${1:-}" in
     if [ "$(state_get expired 0)" = 1 ]; then state_set expired 0; else state_set expired 1; fi
     exit 0 ;;
   __set_sort) state_set sort "${2:-time}"; exit 0 ;;
+  __theme_sample)  # theme picker preview: a sample screen in theme $2
+    load_palette "$(resolve_theme "${2:-}")"; theme_sample; exit 0 ;;
   __label)    # the boxed layout's Search label: sort (+ source in ccc)
     if [ "${CCR_CODEX:-0}" = 1 ]; then
       t search_label "$(state_get sort time) · $(state_get source all)"
@@ -1465,6 +1573,7 @@ FORK=0     # 1 => resume with --fork-session
 EXPIRED=0  # 1 => start the menu with expired sessions shown
 NTH=""     # set => resume directly without the menu (Nth in sorted order)
 THEME_OVERRIDE=""
+THEMES_PICK=0   # 1 => run the theme picker instead of the menu
 while [ $# -gt 0 ]; do
   case "$1" in
     -s|--sort) SORT="${2:-time}"; shift 2 ;;
@@ -1478,6 +1587,7 @@ while [ $# -gt 0 ]; do
     -x|--expired) EXPIRED=1; shift ;;
     -t|--theme) THEME_OVERRIDE="${2:-}"; shift 2 ;;
     --theme=*) THEME_OVERRIDE="${1#*=}"; shift ;;
+    --themes)  THEMES_PICK=1; shift ;;
     -h|--help) print_help; exit 0 ;;
     -V|--version) printf '%s %s\n' "$(basename "$0")" "$VERSION"; exit 0 ;;
     .)         FILTER="$PWD"; shift ;;
@@ -1505,7 +1615,8 @@ case "$SORT" in
 esac
 [ "$SORT" = workdir ] && SORT=dir
 
-THEME="$(resolve_theme "${THEME_OVERRIDE:-${CCR_THEME:-}}" warn)"
+# --theme > CCR_THEME > the theme saved by --themes > tokyonight
+THEME="$(resolve_theme "${THEME_OVERRIDE:-${CCR_THEME:-$(saved_theme)}}" warn)"
 export CCR_THEME="$THEME"
 load_palette "$THEME"
 
@@ -1514,6 +1625,8 @@ export CCR_LANG="$LANG_MODE"
 export CCR_FILTER="$FILTER"
 export CCR_SELF="$0"
 export CCR_CODEX="$CODEX_MODE"
+
+[ "$THEMES_PICK" = 1 ] && { pick_theme; exit 0; }
 
 # Quick resume: skip the menu and resume the Nth CLI session in sorted order.
 if [ -n "$NTH" ]; then
