@@ -269,7 +269,7 @@ has   "subcommand w/o palette" "$(CCR_PALETTE= CCR_THEME=tokyonight COLORTERM=tr
 strip_row() { strip | sed 's/[[:space:]]*$//'; }
 same() { if [ "$2" = "$3" ]; then ok; else bad "$1" "$3" "$2"; fi; }   # exact match, multi-line safe
 same "same layout any theme" "$(CCR_THEME=classic "$SH" "$CCC" __list time | cut -f1 | strip_row)" "$(CCR_THEME=tokyonight COLORTERM=truecolor "$SH" "$CCC" __list time | cut -f1 | strip_row)"
-has  "preview uses theme"    "$(CCR_THEME=tokyonight COLORTERM=truecolor "$SH" "$CCR" __preview t w r "$P" "" aaaa-live cli "" "")" $'\033[1;38;2;122;162;247m📌'
+has  "preview uses theme"    "$(CCR_THEME=tokyonight COLORTERM=truecolor "$SH" "$CCR" __preview t w r "$P" "" aaaa-live cli "" "")" $'\033[48;2;122;162;247m\033[1;38;2;26;27;38m 📌'
 has  "outputs use theme"     "$(CCR_THEME=tokyonight COLORTERM=truecolor "$SH" "$CCR" __preview t w r "$P" "" aaaa-live cli "" "")" $'\033[38;2;158;206;106m✓'
 fresh; COLORTERM=truecolor CCR_THEME=tokyonight run ctrl-y aaaa-live "$CCR" >/dev/null
 has  "pane uses theme"       "$(awk '/PID 102/' "$F/args")" $'\033[1;38;2;247;118;142m 75.0% CPU'
@@ -312,7 +312,7 @@ has   "classic theme boxed"  "$A" "--style=full"
 hasnt "classic no colors"    "$A" "--color="
 A="$(CCR_THEME=tokyonight COLORTERM=truecolor args_for 0.74.4 "$CCC")"
 has   "boxed colors"         "$A" "header-border:#ff9e64"
-has   "ccc source in label"  "$A" "--input-label= 🔍 搜尋 · time · all "
+has   "ccc source in label"  "$(printf '%s' "$A" | strip)" "--input-label= 🔍 搜尋 · time · all "
 STYLE_N="$(grep -n '^--style=full$' "$F/args" | head -1 | cut -d: -f1)"
 COLOR_N="$(grep -n '^--color=' "$F/args" | head -1 | cut -d: -f1)"
 if [ -n "$STYLE_N" ] && [ -n "$COLOR_N" ] && [ "$COLOR_N" -gt "$STYLE_N" ]; then ok
@@ -389,6 +389,29 @@ SROWS="$(FZF_PREVIEW_COLUMNS=90 "$SH" "$CCR" __theme_sample tokyonight | strip |
 same  "sample: columns aligned"  "$(printf '%s\n' "$SROWS" | python3 -c 'import sys,unicodedata
 print(len({tuple(sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in x) for x in l.split("│")[:3]) for l in sys.stdin}))')" "1"
 hasnt "sample: classic no bg"  "$(FZF_PREVIEW_COLUMNS=90 "$SH" "$CCR" __theme_sample classic)" "48;"
+
+# ---------------------------------------------------------------------------
+# colour blocks: pill labels + tinted preview blocks
+# ---------------------------------------------------------------------------
+A="$(CCR_THEME=tokyonight COLORTERM=truecolor args_for 0.74.4 "$CCC")"
+has   "pill: header label"     "$(grep '^--header-label=' "$F/args")" $'48;2;255;158;100m'
+has   "pill: input label"      "$(grep '^--input-label=' "$F/args")" $'48;2;122;162;247m'
+has   "pill: list label"       "$(grep '^--list-label=' "$F/args")" $'48;2;158;206;106m'
+has   "pill: preview label"    "$(grep '^--preview-label=' "$F/args")" $'48;2;187;154;247m'
+has   "pill: dark text"        "$(grep '^--header-label=' "$F/args")" $'38;2;26;27;38m'
+S="$(mktemp)"; printf 'sort=title\nsource=all\n' > "$S"
+has   "pill: __label"          "$(CCR_STATE="$S" CCR_CODEX=1 CCR_THEME=tokyonight COLORTERM=truecolor CCR_PALETTE= "$SH" "$CCC" __label)" $'48;2;122;162;247m'
+rm -f "$S"
+has   "pill: classic layout"   "$(CCR_THEME=tokyonight COLORTERM=truecolor args_for 0.57.0 "$CCR"; grep '^--border-label=' "$F/args")" $'48;2;'
+hasnt "pill: classic theme"    "$(CCR_THEME=classic args_for 0.74.4 "$CCR"; grep -- '-label=' "$F/args")" $'48;'
+has   "pill: 256 colours"      "$(CCR_THEME=tokyonight args_for 0.74.4 "$CCR"; grep '^--header-label=' "$F/args")" $'48;5;'
+"$SH" "$CCR" __list time >/dev/null
+TPV="$(CCR_THEME=tokyonight COLORTERM=truecolor CCR_PALETTE= bpv 120 t w r "$P" "hello live" aaaa-live cli "" "")"
+has   "block: title pill"      "$TPV" $'48;2;122;162;247m'
+has   "block: artifacts tint"  "$(printf '%s\n' "$TPV" | grep 'Q3')" $'48;2;'
+same  "block: tinted fits"     "$(printf '%s\n' "$TPV" | maxw)" "120"
+hasnt "block: classic no tint" "$(CCR_PALETTE= bpv 120 t w r "$P" "hello live" aaaa-live cli "" "")" $'48;'
+has   "sample: pills"          "$(COLORTERM=truecolor FZF_PREVIEW_COLUMNS=90 "$SH" "$CCR" __theme_sample tokyonight)" $'48;2;255;158;100m'
 
 echo "pass=$pass fail=$fail"
 [ "$fail" = 0 ]

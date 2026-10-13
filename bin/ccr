@@ -398,6 +398,16 @@ for k, v in pal.items():
     else:
         sgr[k] = "38;2;%d;%d;%d" % rgb(v) if truecolor else "38;5;%d" % x256(v)
         fz[k] = v if truecolor else str(x256(v))
+# background versions of the section colours (pill labels) and faint
+# tints of them over the theme background (preview block interiors)
+def bgp(h): return "48;2;%d;%d;%d" % rgb(h) if truecolor else "48;5;%d" % x256(h)
+def mix(h, base, a):
+    return "#%02x%02x%02x" % tuple(round(x * a + y * (1 - a)) for x, y in zip(rgb(h), rgb(base)))
+if pal.get("bg", "").startswith("#"):
+    for k in ("t_proc", "t_search", "t_list", "t_preview", "accent", "out", "ok", "key"):
+        sgr["bg_" + k] = bgp(pal[k])
+    for k in ("accent", "out", "ok", "key"):
+        sgr["tint_" + k] = bgp(mix(pal[k], pal["bg"], 0.14))
 print("PAL=" + "|".join(k + "=" + v for k, v in sgr.items()))
 if fz:
     m = lambda d: ",".join(a + ":" + fz[r] for a, r in d.items())
@@ -422,6 +432,13 @@ pal() {
     !*) printf '\033[%sm' "${v#!}" ;;
     *)  if [ -n "${2:-}" ]; then printf '\033[%s;%sm' "$2" "$v"; else printf '\033[%sm' "$v"; fi ;;
   esac
+}
+
+# pill <role> <text> -> text as a filled badge: the role's colour as the
+# background, the theme background as bold text. Plain text for classic.
+pill() {
+  local b; b="$(pal "bg_$1")"
+  if [ -n "$b" ]; then printf '%s%s%s\033[0m' "$b" "$(pal bg 1)" "$2"; else printf '%s' "$2"; fi
 }
 
 # ver_ge <version> <major.minor> -> success when version >= major.minor
@@ -605,8 +622,12 @@ def render(block, width):
     name, colour, lines = block
     inner = width - 4
     bc = C(colour)
+    pbg, tint = C("bg_" + colour), C("tint_" + colour)
     label = cut(name, max(1, width - 5))
-    out = [f"{bc}╭ {R}{C(colour, '1')}{label}{R}{bc} {'─' * max(0, width - 4 - dw(label))}╮{R}"]
+    if pbg:   # pill title: section colour as background, theme bg as text
+        out = [f"{bc}╭{R}{pbg}{C('bg', '1')} {label} {R}{bc}{'─' * max(0, width - 4 - dw(label))}╮{R}"]
+    else:
+        out = [f"{bc}╭ {R}{C(colour, '1')}{label}{R}{bc} {'─' * max(0, width - 4 - dw(label))}╮{R}"]
     for segs in lines:
         text, room = "", inner
         for s, c in segs:
@@ -615,7 +636,9 @@ def render(block, width):
             room -= dw(s)
             if room <= 0:
                 break
-        out.append(f"{bc}│{R} {text}{' ' * max(0, room)} {bc}│{R}")
+        if tint:  # keep the faint tint behind every segment of the line
+            text = text.replace(R, R + tint)
+        out.append(f"{bc}│{R}{tint} {text}{' ' * max(0, room)} {R}{bc}│{R}")
     out.append(f"{bc}╰{'─' * (width - 2)}╯{R}")
     return out
 
@@ -765,14 +788,14 @@ theme_sample() {
   [ "$LANG_MODE" = zh ] && { rel='    剛剛'; r9='9 分鐘前'; r1d='  1 天前'; r1mo='1 個月前'; }
   local sep d; sep="$(pal sep)│$R"; d="$(pal dim)"
   {
-    printf '%s%s%s\n' "$(pal t_proc 1)" "$(t proc_label 2)" "$R"
+    printf '%s\n' "$(pill t_proc "$(t proc_label 2)")"
     printf '  %s-    %s  %swebpack --watch %s  %s61.9%% CPU%s  %s~/payments%s\n' \
       "$(pal port 1)" "$R" "$(pal fg 1)" "$R" "$(pal hot 1)" "$R" "$(pal dir)" "$R"
     printf '  %s:5173%s  %svite --port 5173%s  %s 0.0%% CPU%s  %s~/acme-api%s  %s→ http://localhost:5173%s\n' \
       "$(pal port 1)" "$R" "$(pal fg 1)" "$R" "$d" "$R" "$(pal dir)" "$R" "$(pal url 4)" "$R"
-    printf '%s%s%s\n' "$(pal t_search 1)" "$(t search_label time)" "$R"
+    printf '%s\n' "$(pill t_search "$(t search_label time)")"
     printf '%s❯%s jwt\n' "$(pal accent 1)" "$R"
-    printf '%s%s%s\n' "$(pal t_list 1)" "$(t list_label)" "$R"
+    printf '%s\n' "$(pill t_list "$(t list_label)")"
     printf '%s▌%s%sclaude%s %s %s%s%s %s %s⚙%s%s✦%s %sAdd JWT auth to the API gateway%s %s %s~/acme-api%s\n' \
       "$(pal accent 1)" "$R" "$(pal claude)" "$R" "$sep" "$(pal recent)" "$rel" "$R" "$sep" \
       "$(pal gear)" "$R" "$(pal out)" "$R" "$(pal fg)" "$R" "$sep" "$(pal path)" "$R"
@@ -781,7 +804,7 @@ theme_sample() {
     printf ' %sclaude%s %s %s%s%s %s    %sTeach the team Claude Desktop  %s %s %sDesktop · ~/handbook%s\n' \
       "$(pal claude)" "$R" "$sep" "$(pal week)" "$r1d" "$R" "$sep" "$(pal fg)" "$R" "$sep" "$(pal desktop)" "$R"
     printf ' %sclaude │ %s │    Upgrade to Postgres 16          │ ~/infra ✗%s\n' "$(pal expired)" "$r1mo" "$R"
-    printf '%s\n' "$(pal t_preview 1)$(t preview_label)$R"
+    printf '%s\n' "$(pill t_preview "$(t preview_label)")"
     CCR_SAMPLE=1 FZF_PREVIEW_COLUMNS="$w" preview_boxed "Add JWT auth to the API gateway" "2026-10-12 14:08" \
       "${rel#"${rel%%[! ]*}"}" "~/acme-api" "extract the token check into middleware" "0a1b2c3d-4e5f-6789" cli "" ""
   } | python3 -c '
@@ -1552,9 +1575,9 @@ case "${1:-}" in
     load_palette "$(resolve_theme "${2:-}")"; theme_sample; exit 0 ;;
   __label)    # the boxed layout's Search label: sort (+ source in ccc)
     if [ "${CCR_CODEX:-0}" = 1 ]; then
-      t search_label "$(state_get sort time) · $(state_get source all)"
+      pill t_search "$(t search_label "$(state_get sort time) · $(state_get source all)")"
     else
-      t search_label "$(state_get sort time)"
+      pill t_search "$(t search_label "$(state_get sort time)")"
     fi
     exit 0 ;;
   -h|--help) print_help; exit 0 ;;
@@ -1708,12 +1731,13 @@ if [ "$LAYOUT" = boxed ]; then
   [ "$FZF_HAS_GUTTER" = 1 ] && LAYOUT_ARGS+=(--gutter=' ')
   if [ "$PANE_COUNT" -gt 0 ]; then PLABEL="$(t proc_label "$PANE_COUNT")"; else PLABEL="$(t proc_label0)"; fi
   if [ "$CODEX_MODE" = 1 ]; then SLABEL="$(t search_label "$SORT · all")"; else SLABEL="$(t search_label "$SORT")"; fi
+  PLABEL="$(pill t_proc "$PLABEL")"; SLABEL="$(pill t_search "$SLABEL")"
   LAYOUT_ARGS+=(--style=full --header-first --header="$BOX_HEADER"
     --header-border=rounded --input-border=rounded --list-border=rounded
     --header-label="$PLABEL" --header-label-pos=2
     --input-label="$SLABEL" --input-label-pos=2
-    --list-label="$(t list_label)" --list-label-pos=2
-    --preview-label="$(t preview_label)" --preview-label-pos=2
+    --list-label="$(pill t_list "$(t list_label)")" --list-label-pos=2
+    --preview-label="$(pill t_preview "$(t preview_label)")" --preview-label-pos=2
     --prompt='❯ ' --pointer='▌' --highlight-line --info=inline-right
     --preview-window='down,45%,border-rounded'
     --bind 'ctrl-t:execute-silent("$CCR_SELF" __set_sort time)+reload("$CCR_SELF" __list)+transform-input-label("$CCR_SELF" __label)'
@@ -1724,9 +1748,9 @@ if [ "$LAYOUT" = boxed ]; then
   [ "$FZF_HAS_FOOTER" = 1 ] && LAYOUT_ARGS+=(--footer-border=none)
   [ "$CODEX_MODE" = 1 ] && SOURCE_BIND=(--bind 'ctrl-a:execute-silent("$CCR_SELF" __cycle_source)+reload("$CCR_SELF" __list)+transform-input-label("$CCR_SELF" __label)')
 else
-  LAYOUT_ARGS+=(--border=rounded --border-label=" $PROG " --border-label-pos=3
+  LAYOUT_ARGS+=(--border=rounded --border-label="$(pill accent " $PROG ")" --border-label-pos=3
     --header-first --header="$HEADER" --prompt="[$SORT] ❯ "
-    --preview-label="$(t preview_label)" --preview-window='down,45%,border-top'
+    --preview-label="$(pill t_preview "$(t preview_label)")" --preview-window='down,45%,border-top'
     --bind 'ctrl-t:reload("$CCR_SELF" __list time)+change-prompt([time] ❯ )'
     --bind 'ctrl-o:reload("$CCR_SELF" __list title)+change-prompt([title] ❯ )'
     --bind 'ctrl-g:reload("$CCR_SELF" __list dir)+change-prompt([dir] ❯ )')
@@ -1767,7 +1791,7 @@ if [ "$KEY" = ctrl-l ]; then
   if [ "$(printf '%s\n' "$ITEMS" | wc -l | tr -d ' ')" -gt 1 ]; then
     PICK_ARGS=(--delimiter="$TAB" --with-nth=2 --reverse --height=40% --prompt="$(t pick_output)")
     if [ "$LAYOUT" = boxed ]; then
-      PICK_ARGS+=(--list-border=rounded --list-label="$(t open_label "$TITLE_PICK")" --list-label-pos=2
+      PICK_ARGS+=(--list-border=rounded --list-label="$(pill t_list "$(t open_label "$TITLE_PICK")")" --list-label-pos=2
         --input-border=rounded --pointer='▌' --highlight-line)
       [ -n "$FZF_COLORS_BOXED" ] && PICK_ARGS+=(--color="$FZF_COLORS_BOXED")
     else
