@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# ccr — Coding-agent Console & Resume (ccc adds Codex)
-# Browse all Claude Code sessions across every project, pick one in an fzf
-# menu (with preview), then auto-cd into its working directory and resume.
-# Optionally enable mobile Remote Control on resume.
+# ccr — Coding-agent Console & Resume. Pick up exactly where your agents left off.
+# Browse Claude Code sessions (ccc adds Codex) across every project in an fzf
+# menu with preview, see what they left running, then auto-cd into the
+# working directory and resume. Optionally enable mobile Remote Control.
 #
 # Requirements: bash, fzf, python3, and the `claude` CLI.
 # Language: auto-detected from $LANG; override with --lang zh|en or $CCR_LANG.
@@ -245,8 +245,9 @@ print_help_body() {
   if [ "$LANG_MODE" = zh ]; then
     cat <<'EOF'
 ccr — Coding-agent Console & Resume
+從 agent 停下的地方，無縫接續。
 
-掃描所有 Claude Code 歷史 session，用 fzf 選單 + preview 呈現，
+跨專案瀏覽 Claude Code 的 session（用 ccc 再加上 Codex），以 fzf 選單 + 預覽呈現，
 選定後自動 cd 到該專案目錄並 resume（可選擇開啟手機遠端控制）。
 
 用法：
@@ -291,10 +292,11 @@ EOF
   else
     cat <<'EOF'
 ccr — Coding-agent Console & Resume
+Pick up exactly where your agents left off.
 
-Browse all Claude Code sessions across every project in an fzf menu
-(with preview), then auto-cd into the session's working directory and
-resume it. Optionally enable mobile Remote Control on resume.
+Browse Claude Code sessions (run as ccc to add Codex) across every project
+in an fzf menu with preview, then auto-cd into the session's working
+directory and resume it. Optionally enable mobile Remote Control on resume.
 
 Usage:
   ccr                      List sessions from every project (sorted by time)

@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Rebranded as **CCR — Coding-agent Console & Resume** ("Pick up exactly where
+  your agents left off."). The repository moved to
+  `kylinfish/coding-agent-console-resume`; old links and clones keep working
+  through GitHub's redirect. The `ccr` / `ccc` commands are unchanged.
+
 ## [0.6.1] - 2026-10-13
 
 ### Added

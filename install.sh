@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# ccr installer — symlinks bin/ccr (Claude Code) and bin/ccc (Claude Code +
+# CCR (Coding-agent Console & Resume) installer — symlinks bin/ccr (Claude Code) and bin/ccc (Claude Code +
 # Codex, the same script) into a directory on your PATH (default:
 # ~/.local/bin) and optionally adds a one-line shell startup tip.
 #
@@ -12,7 +12,7 @@ DEST_DIR="${CCR_INSTALL_DIR:-$HOME/.local/bin}"
 DEST="$DEST_DIR/ccr"
 DEST_CCC="$DEST_DIR/ccc"
 
-echo "ccr installer"
+echo "CCR installer — Coding-agent Console & Resume"
 echo "  source : $SRC"
 echo "  target : $DEST"
 
